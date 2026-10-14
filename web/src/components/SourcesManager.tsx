@@ -6,6 +6,7 @@ import {
   Copy,
   Edit2,
   ExternalLink,
+  FileText,
   Layers,
   Plus,
   RefreshCw,
@@ -70,6 +71,12 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
   const [targetGroupId, setTargetGroupId] = useState<string>('custom');
   const [customText, setCustomText] = useState('');
   const [customReplaceAll, setCustomReplaceAll] = useState(false);
+
+  // Bulk edit all subscription text for a custom group
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkEditingSource, setBulkEditingSource] = useState<SubscriptionSource | null>(null);
+  const [bulkEditText, setBulkEditText] = useState('');
+  const [bulkEditCopied, setBulkEditCopied] = useState(false);
 
   // Network source form states
   const [newNetworkName, setNewNetworkName] = useState('');
@@ -216,6 +223,49 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
     setCustomText('');
     setCustomReplaceAll(false);
     setShowImportNodesModal(true);
+  };
+
+  // Open bulk edit modal for subscription text
+  const handleOpenBulkEditModal = (source: SubscriptionSource) => {
+    setBulkEditingSource(source);
+    const nodes = source.nodes || [];
+    const text = nodes
+      .map(node => (typeof node.raw === 'string' && node.raw.trim()) ? node.raw.trim() : nodeToUri(node))
+      .filter(Boolean)
+      .join('\n');
+    setBulkEditText(text);
+    setBulkEditCopied(false);
+    setShowBulkEditModal(true);
+  };
+
+  const handleBulkEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkEditingSource || isSubmitting) return;
+    if (!bulkEditText.trim()) {
+      if (!confirm(`文本内容为空，保存后将清空【${bulkEditingSource.name}】中的所有节点，确定继续吗？`)) {
+        return;
+      }
+    }
+    setIsSubmitting(true);
+    try {
+      await onImportCustomNodes(bulkEditText, true, bulkEditingSource.id);
+      setShowBulkEditModal(false);
+      setBulkEditingSource(null);
+    } catch (err: any) {
+      console.error('Failed to bulk edit subscription text:', err);
+      alert(err.message || '更新失败，请检查节点文本格式');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCopyBulkEditText = async () => {
+    if (!bulkEditText) return;
+    const ok = await copyToClipboard(bulkEditText);
+    if (ok) {
+      setBulkEditCopied(true);
+      setTimeout(() => setBulkEditCopied(false), 2000);
+    }
   };
 
   // Open edit modal for network source
@@ -609,6 +659,14 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                   {isCustom && !isFilter && (
                     <>
                       <button
+                        onClick={() => handleOpenBulkEditModal(source)}
+                        className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
+                        title="编辑所有订阅文本"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
                         onClick={() => handleOpenImportModal(source.id)}
                         className="p-1.5 text-[#CC785C] hover:text-[#B85D3F] hover:bg-[#FAF0EC] rounded-lg transition-colors cursor-pointer"
                         title="添加节点到此组"
@@ -719,8 +777,19 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                       )}
                     </div>
 
-                    <div className="text-[11px] text-[#8C877D] shrink-0 font-medium">
-                      显示 {filteredNodes.length} / {nodesList.length} 节点
+                    <div className="flex items-center gap-2.5">
+                      <div className="text-[11px] text-[#8C877D] shrink-0 font-medium">
+                        显示 {filteredNodes.length} / {nodesList.length} 节点
+                      </div>
+                      {isCustom && (
+                        <button
+                          onClick={() => handleOpenBulkEditModal(source)}
+                          className="text-[11px] text-[#CC785C] hover:text-[#B85D3F] hover:underline font-medium cursor-pointer"
+                          title="编辑所有订阅文本"
+                        >
+                          编辑订阅文本
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -918,6 +987,119 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                 >
                   {isSubmitting ? '保存中...' : (editingNetworkSource ? '保存更改' : '添加并拉取')}
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 弹窗：编辑所有订阅文本 */}
+      {showBulkEditModal && bulkEditingSource && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-[#E3DDD2] shadow-2xl w-full max-w-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F0ECE4]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-[#FAF0EC] text-[#CC785C]">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-[#1F1E1D]">编辑所有订阅文本</h3>
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#FBF2EA] text-[#C45E38] border border-[#F2D8C9]">
+                      {bulkEditingSource.name}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#78746D]">
+                    直接查看或批量修改此组包含的所有节点链接，保存将自动重新解析并覆盖更新。
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowBulkEditModal(false);
+                  setBulkEditingSource(null);
+                }}
+                className="text-xs text-[#9E9A91] hover:text-[#1F1E1D] p-1.5 hover:bg-[#FAF8F5] rounded-lg transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkEditSubmit} className="space-y-3.5">
+              {/* 工具栏：统计与快捷操作 */}
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-[#78746D]">
+                  <span className="font-medium text-[#1F1E1D]">
+                    共 {bulkEditText ? bulkEditText.split('\n').filter(l => l.trim().length > 0).length : 0} 行
+                  </span>
+                  <span>·</span>
+                  <span>原包含 {bulkEditingSource.nodes?.length || 0} 个节点</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyBulkEditText}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-[#59554E] hover:text-[#1F1E1D] bg-[#FAF8F5] hover:bg-[#F0ECE4] border border-[#E3DDD2] rounded-lg transition-colors cursor-pointer"
+                    title="复制所有文本到剪贴板"
+                  >
+                    {bulkEditCopied ? (
+                      <>
+                        <Check className="w-3 h-3 text-[#367A68]" />
+                        <span className="text-[#367A68]">已复制</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>复制全部</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkEditText('')}
+                    className="px-2.5 py-1 text-[11px] font-medium text-[#9E9A91] hover:text-[#B85D3F] hover:bg-[#FAF0EC] rounded-lg transition-colors cursor-pointer"
+                    title="清空文本框"
+                  >
+                    清空
+                  </button>
+                </div>
+              </div>
+
+              {/* 文本编辑区域 */}
+              <div>
+                <textarea
+                  rows={13}
+                  value={bulkEditText}
+                  onChange={e => setBulkEditText(e.target.value)}
+                  placeholder={`支持每行一个节点链接：\nvless://...\nhysteria2://...\nss://...\ntrojan://...\n或完整的 Clash YAML / Singbox JSON`}
+                  className="w-full px-3.5 py-2.5 text-xs font-mono bg-[#FAF8F5] border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C] focus:bg-white resize-y break-all leading-relaxed"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-[11px] text-[#8C877D]">
+                  💡 提示：保存后将使用此文本完全覆盖更新该组的节点
+                </p>
+
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBulkEditModal(false);
+                      setBulkEditingSource(null);
+                    }}
+                    className="px-3.5 py-1.5 text-xs font-medium btn-claude-secondary rounded-xl cursor-pointer"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-1.5 text-xs font-semibold btn-claude-primary rounded-xl disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSubmitting ? '保存更新中...' : '保存修改'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

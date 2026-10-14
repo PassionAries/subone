@@ -90,7 +90,7 @@ apiRouter.get('/api/custom-nodes', (req, res) => {
 
 apiRouter.post('/api/custom-nodes/import', (req, res) => {
   const { text, replaceAll, sourceId } = req.body;
-  if (!text || typeof text !== 'string') {
+  if (text === undefined || typeof text !== 'string') {
     return res.status(400).json({ success: false, message: 'Text content required' });
   }
 
@@ -100,6 +100,24 @@ apiRouter.post('/api/custom-nodes/import', (req, res) => {
     : null;
   if (!targetSrc) {
     targetSrc = ensureCustomSource(appConfig);
+  }
+
+  if (replaceAll && !text.trim()) {
+    targetSrc.nodes = [];
+    targetSrc.nodeCount = 0;
+    targetSrc.lastUpdated = new Date().toISOString();
+    ensureCustomProxyGroup(appConfig);
+    saveConfig(appConfig);
+    setGlobalNodesCache(collectNodesFromSources(appConfig));
+
+    return res.json({
+      success: true,
+      count: 0,
+      added: 0,
+      data: [],
+      sourceId: targetSrc.id,
+      proxyGroups: appConfig.proxyGroups,
+    });
   }
 
   const parsedNodes: ProxyNode[] = parseRawContent(text, targetSrc.id, targetSrc.name, undefined, appConfig.countryRules);
