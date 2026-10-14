@@ -9,6 +9,9 @@
 
 ## 更新记录
 
+### 2026-10
+- **支持链式代理（Relay）**：策略组新增 `relay` 类型，支持有序串联多个节点/策略组实现多级流量中转，全平台客户端（Sing-box、Mihomo、Loon、Quantumult X、Egern、Shadowrocket）均已适配。
+
 ### 2026-09
 - **自建与独立节点组支持按源订阅解耦**：
   - 针对 Loon、Mihomo (Clash)、Quantumult X、Egern 等客户端，外部机场订阅保持原链接，自建与独立节点组自动转换为 Subone 独立按源订阅端点（`/s/:token/source/:sourceId`）。
@@ -77,7 +80,7 @@ docker compose up -d
   - **支持导入解析**：VLESS (Reality/Vision/gRPC/WS)、VMess、Shadowsocks (SS 2022/AEAD)、Trojan、Hysteria 2、TUIC v5、AnyTLS、WireGuard、Snell (v1~v4)、SOCKS5、HTTP、v2rayn 等协议；
   - **支持输入格式**：URI 链接列表、Base64 订阅、Clash/Mihomo YAML、Sing-box JSON；
 - **策略组与分流规则**：
-  - 策略组支持 select、url-test、fallback 等类型，支持节点按正则过滤与多级嵌套；
+  - 策略组支持 select、url-test、fallback、relay（链式代理）等类型，支持节点按正则过滤与多级嵌套；
   - 本地规则：CIDR、DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD 等；
   - 远程规则集：GeoSite / GeoIP / SRS / MRS 统一管理与去向分流；
 - **模版与客户端分发**：
