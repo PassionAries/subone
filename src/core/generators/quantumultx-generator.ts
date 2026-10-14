@@ -390,6 +390,14 @@ export function injectUnifiedToQuantumultX(
       return;
     }
 
+    if (grp.type === 'relay') {
+      const members = grp.proxies && grp.proxies.length > 0
+        ? grp.proxies.map(p => p.replace(/[=,]/g, '_'))
+        : ['direct'];
+      addGroupLine(`relay=${grp.name}, ${members.join(', ')}`, grp);
+      return;
+    }
+
     if (grp.filter) {
       let filterPattern = grp.filter.trim();
       if (!filterPattern.startsWith('(?i)')) {

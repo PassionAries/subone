@@ -495,6 +495,14 @@ export function injectUnifiedToShadowrocket(
       }
     }
 
+    if (grp.type === 'relay') {
+      const relayMembers = grp.proxies && grp.proxies.length > 0
+        ? grp.proxies.map(p => p.replace(/[=,]/g, '_'))
+        : ['DIRECT'];
+      groupLines.push(`${grp.name} = relay, ${relayMembers.join(', ')}`);
+      return;
+    }
+
     const grpType = grp.type === 'urltest' ? 'url-test' : (grp.type === 'fallback' ? 'fallback' : 'select');
     if (grpType === 'url-test') {
       groupLines.push(`${grp.name} = url-test, ${members.join(', ')}, url=${grp.url || 'http://cp.cloudflare.com/generate_204'}, interval=${grp.interval || 300}, tolerance=${grp.tolerance || 50}`);

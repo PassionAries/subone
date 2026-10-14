@@ -440,6 +440,14 @@ export function injectUnifiedToLoon(
       return;
     }
 
+    if (grp.type === 'relay') {
+      const members = grp.proxies && grp.proxies.length > 0
+        ? grp.proxies.map(p => p.replace(/[=,]/g, '_'))
+        : ['DIRECT'];
+      groupLines.push(`${grp.name} = relay, ${members.join(', ')}`);
+      return;
+    }
+
     const groupType = grp.type === 'urltest' ? 'url-test' : (grp.type === 'load-balance' ? 'load-balance' : (grp.type || 'select'));
 
     // If group has filter (e.g. 🇭🇰 香港节点)

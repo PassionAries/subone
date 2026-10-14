@@ -206,6 +206,15 @@ export function injectUnifiedToEgern(
       return;
     }
 
+    if (grp.type === 'relay') {
+      generatedGroups.push({
+        name: grp.name,
+        type: 'relay',
+        proxies: grp.proxies && grp.proxies.length > 0 ? [...grp.proxies] : ['DIRECT'],
+      });
+      return;
+    }
+
     const groupType = grp.type === 'urltest' ? 'url-test' : (grp.type === 'load-balance' ? 'load-balance' : (grp.type || 'select'));
 
     if (grp.filter) {

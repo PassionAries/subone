@@ -11,7 +11,9 @@ import {
   X,
   Zap,
   Tag,
+  ArrowLeft,
   ArrowRight,
+  Link2,
   ChevronDown,
   ChevronUp,
   Server,
@@ -291,6 +293,16 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
     setFormData({ ...formData, proxies: current.filter(p => p !== proxyName) });
   };
 
+  const handleMoveProxy = (idx: number, direction: 'left' | 'right') => {
+    const current = [...(formData.proxies || [])];
+    const targetIdx = direction === 'left' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= current.length) return;
+    const temp = current[idx];
+    current[idx] = current[targetIdx];
+    current[targetIdx] = temp;
+    setFormData({ ...formData, proxies: current });
+  };
+
   const handleToggleUse = (sourceName: string) => {
     const current = formData.use || [];
     if (current.includes(sourceName)) {
@@ -431,32 +443,51 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                       ? 'bg-[#F0ECE4] text-[#59554E]'
                       : group.type === 'urltest'
                         ? 'bg-[#EAF2EE] text-[#2D6A5A]'
-                        : 'bg-[#FAF0EC] text-[#B85D3F]'
+                        : group.type === 'relay'
+                          ? 'bg-[#F4F1FA] text-[#6A4C9C] border border-[#E8E1F5]'
+                          : 'bg-[#FAF0EC] text-[#B85D3F]'
                       }`}
                   >
-                    {group.type === 'urltest' ? 'url-test' : group.type}
+                    {group.type === 'relay' ? '🔗 relay' : group.type === 'urltest' ? 'url-test' : group.type}
                   </span>
                 </div>
 
                 <div className="space-y-1.5">
                   {hasProxies && (
                     <div className="space-y-1">
-                      <span className="text-[10px] font-medium text-[#9E9A91]">包含子项:</span>
+                      <span className="text-[10px] font-medium text-[#9E9A91]">
+                        {group.type === 'relay' ? '🔗 链式中继流程:' : '包含子项:'}
+                      </span>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {group.proxies!.map((p, idx) => {
                           const count = getNodeCountForOutbound(p);
+                          const total = group.proxies!.length;
+                          const isRelay = group.type === 'relay';
                           return (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FAF8F5] border border-[#E8E4DC] text-[#4A4742] rounded-md text-[11px] font-medium"
-                            >
-                              <span>{p}</span>
-                              {count !== null && count > 0 && (
-                                <span className="text-[9px] font-bold text-[#2D6A5A] bg-[#EAF2EE] px-1 rounded">
-                                  {count}
-                                </span>
+                            <React.Fragment key={idx}>
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${
+                                  isRelay
+                                    ? 'bg-[#FAF8FE] border-[#E8E1F5] text-[#553C9A]'
+                                    : 'bg-[#FAF8F5] border-[#E8E4DC] text-[#4A4742]'
+                                }`}
+                              >
+                                {isRelay && (
+                                  <span className="text-[10px] font-bold text-[#6A4C9C]">
+                                    {idx === 0 ? '1️⃣ 入口' : (idx === total - 1 ? '🏁 落地' : `${idx + 1}️⃣ 中继`)}:
+                                  </span>
+                                )}
+                                <span>{p}</span>
+                                {count !== null && count > 0 && (
+                                  <span className="text-[9px] font-bold text-[#2D6A5A] bg-[#EAF2EE] px-1 rounded">
+                                    {count}
+                                  </span>
+                                )}
+                              </span>
+                              {isRelay && idx < total - 1 && (
+                                <span className="text-xs text-[#9E9A91] font-bold">➔</span>
                               )}
-                            </span>
+                            </React.Fragment>
                           );
                         })}
                       </div>
@@ -686,10 +717,23 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                     <option value="urltest">url-test (自动测速优选)</option>
                     <option value="fallback">fallback (故障自动切换)</option>
                     <option value="load-balance">load-balance (负载均衡)</option>
+                    <option value="relay">relay (🔗 链式中继 / 链式代理)</option>
                     <option value="direct">direct (直接直连)</option>
                   </select>
                 </div>
               </div>
+
+              {formData.type === 'relay' && (
+                <div className="p-3 bg-[#FAF5FF] border border-[#E9D8FD] rounded-xl text-xs space-y-1">
+                  <div className="font-bold text-[#6B46C1] flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>链式代理 (Relay) 说明</span>
+                  </div>
+                  <p className="text-[#553C9A] leading-relaxed">
+                    流量将严格按照下方列表中出站项从左至右依次逐级中继。<b>第 1 项为前置入口</b>（推荐为香港专线或测速优选组），<b>最后一项为出口落地</b>。您可通过每个标签上的 <b>← / →</b> 调整中继跳数顺序。
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2 bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E8E4DC]">
                 <div className="flex items-center justify-between">
@@ -722,25 +766,57 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                 <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-white rounded-lg border border-[#E3DDD2]">
                   {(formData.proxies || []).map((p, idx) => {
                     const valid = isProxyValid(p);
+                    const isRelay = formData.type === 'relay';
+                    const total = (formData.proxies || []).length;
                     return (
                       <span
                         key={idx}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium text-xs border ${valid
-                            ? 'bg-[#FAF0EC] text-[#B85D3F] border-[#F3DDD3]'
-                            : 'bg-[#FDF2F2] text-[#E02424] border-[#FBD5D5] ring-1 ring-[#E02424]/20'
-                          }`}
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-medium text-xs border ${
+                          isRelay
+                            ? 'bg-[#F4F1FA] text-[#6A4C9C] border-[#E8E1F5]'
+                            : valid
+                              ? 'bg-[#FAF0EC] text-[#B85D3F] border-[#F3DDD3]'
+                              : 'bg-[#FDF2F2] text-[#E02424] border-[#FBD5D5] ring-1 ring-[#E02424]/20'
+                        }`}
                         title={valid ? undefined : '该节点在订阅与自建源中已不存在，保存或点击清理即可移除'}
                       >
+                        {isRelay && (
+                          <span className="text-[10px] px-1 py-0.2 rounded font-bold bg-[#E8E1F5] text-[#553C9A]">
+                            {idx === 0 ? '1️⃣ 入口' : (idx === total - 1 ? '🏁 落地' : `${idx + 1}️⃣ 中继`)}
+                          </span>
+                        )}
                         <span>{p}</span>
                         {!valid && (
                           <span className="text-[9px] px-1 bg-[#FDE8E8] text-[#9B1C1C] rounded font-bold">
                             已失效
                           </span>
                         )}
+                        {isRelay && total > 1 && (
+                          <div className="flex items-center gap-0.5 border-l border-[#E8E1F5] pl-1 ml-0.5">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveProxy(idx, 'left')}
+                              className="text-[#6A4C9C] hover:text-[#4A2D78] disabled:opacity-30 disabled:cursor-not-allowed px-1 cursor-pointer font-bold"
+                              title="提前一跳 (向左移)"
+                            >
+                              ←
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === total - 1}
+                              onClick={() => handleMoveProxy(idx, 'right')}
+                              className="text-[#6A4C9C] hover:text-[#4A2D78] disabled:opacity-30 disabled:cursor-not-allowed px-1 cursor-pointer font-bold"
+                              title="延后一跳 (向右移)"
+                            >
+                              →
+                            </button>
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleRemoveProxy(p)}
-                          className={`${valid ? 'text-[#B85D3F] hover:text-[#94381C]' : 'text-[#E02424] hover:text-[#9B1C1C]'} p-0.5 cursor-pointer`}
+                          className={`${isRelay ? 'text-[#6A4C9C] hover:text-[#4A2D78]' : valid ? 'text-[#B85D3F] hover:text-[#94381C]' : 'text-[#E02424] hover:text-[#9B1C1C]'} p-0.5 cursor-pointer`}
                         >
                           <X className="w-3 h-3" />
                         </button>

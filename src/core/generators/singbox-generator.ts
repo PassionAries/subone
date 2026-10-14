@@ -607,6 +607,60 @@ export function injectUnifiedToSingbox(
       return;
     }
 
+    if (grp.type === 'relay') {
+      const hops = (grp.proxies || []).filter(Boolean);
+      if (hops.length === 0) {
+        groupOutbounds.push({
+          tag: grp.name,
+          type: 'selector',
+          outbounds: ['🎯 本地直连'],
+        });
+        return;
+      }
+      if (hops.length === 1) {
+        groupOutbounds.push({
+          tag: grp.name,
+          type: 'selector',
+          outbounds: [hops[0]],
+        });
+        return;
+      }
+
+      // Multi-hop relay: hop 0 (entry) -> hop 1 -> ... -> hop N-1 (exit)
+      let prevHopTag = hops[0];
+      for (let i = 1; i < hops.length; i++) {
+        const currentHop = hops[i];
+        const isFinalHop = i === hops.length - 1;
+        const matchingOutbound = proxyOutbounds.find(p => p.tag === currentHop);
+
+        if (matchingOutbound) {
+          const hopTag = isFinalHop ? grp.name : `${grp.name}-hop-${i + 1}`;
+          const chained = {
+            ...matchingOutbound,
+            tag: hopTag,
+            detour: prevHopTag,
+          };
+          if (isFinalHop) {
+            groupOutbounds.push(chained);
+          } else {
+            proxyOutbounds.push(chained);
+          }
+          prevHopTag = hopTag;
+        } else {
+          if (isFinalHop) {
+            groupOutbounds.push({
+              tag: grp.name,
+              type: 'selector',
+              outbounds: [currentHop],
+              detour: prevHopTag,
+            });
+          }
+          prevHopTag = currentHop;
+        }
+      }
+      return;
+    }
+
     let outboundsList = grp.proxies ? [...grp.proxies] : [];
 
     // Support use: [ "MESL" ] or [ "自建节点" ] or [ "HK优选" ]

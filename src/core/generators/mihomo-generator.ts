@@ -500,6 +500,16 @@ export function injectUnifiedToMihomo(
       return;
     }
 
+    if (grp.type === 'relay') {
+      const grpObj: any = {
+        name: grp.name,
+        type: 'relay',
+        proxies: grp.proxies && grp.proxies.length > 0 ? [...grp.proxies] : ['DIRECT'],
+      };
+      generatedGroups.push(grpObj);
+      return;
+    }
+
     const groupType = grp.type === 'urltest' ? 'url-test' : (grp.type === 'load-balance' ? 'load-balance' : grp.type);
     const grpObj: any = {
       name: grp.name,

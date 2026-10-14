@@ -64,7 +64,7 @@ export interface ConfigTemplate {
 export interface ProxyGroupItem {
   id: string;
   name: string;
-  type: 'select' | 'urltest' | 'fallback' | 'load-balance' | 'direct' | 'reject';
+  type: 'select' | 'urltest' | 'fallback' | 'load-balance' | 'relay' | 'direct' | 'reject';
   proxies?: string[];
   use?: string[];
   filter?: string;

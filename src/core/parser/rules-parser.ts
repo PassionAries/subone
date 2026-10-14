@@ -8,7 +8,7 @@ export function parseProxyGroupsText(text: string): ProxyGroupItem[] {
   const groups: ProxyGroupItem[] = [];
   const groupNames = new Set<string>();
 
-  const addGroup = (name: string, type: 'select' | 'urltest' | 'fallback' | 'direct' = 'select', extra: Partial<ProxyGroupItem> = {}) => {
+  const addGroup = (name: string, type: 'select' | 'urltest' | 'fallback' | 'load-balance' | 'relay' | 'direct' | 'reject' = 'select', extra: Partial<ProxyGroupItem> = {}) => {
     const cleanName = name.trim();
     if (!cleanName || groupNames.has(cleanName)) return;
     groupNames.add(cleanName);
@@ -31,7 +31,10 @@ export function parseProxyGroupsText(text: string): ProxyGroupItem[] {
           let type: any = 'select';
           if (item.type === 'urltest' || item.type === 'url-test') type = 'urltest';
           if (item.type === 'fallback') type = 'fallback';
+          if (item.type === 'relay') type = 'relay';
+          if (item.type === 'load-balance') type = 'load-balance';
           if (item.type === 'direct') type = 'direct';
+          if (item.type === 'reject') type = 'reject';
           if (name) {
             const rawProxies = item.outbounds || item.proxies;
             const rawUse = item.use;
@@ -61,7 +64,10 @@ export function parseProxyGroupsText(text: string): ProxyGroupItem[] {
           let type: any = 'select';
           if (item.type === 'url-test' || item.type === 'urltest') type = 'urltest';
           if (item.type === 'fallback') type = 'fallback';
+          if (item.type === 'relay') type = 'relay';
+          if (item.type === 'load-balance') type = 'load-balance';
           if (item.type === 'direct') type = 'direct';
+          if (item.type === 'reject') type = 'reject';
           if (name) {
             const rawProxies = item.proxies || item.outbounds;
             const rawUse = item.use;
@@ -89,8 +95,14 @@ export function parseProxyGroupsText(text: string): ProxyGroupItem[] {
       // Loon format: Name = select,option1,option2...
       const [name, rest] = line.split('=');
       const parts = rest.split(',').map(s => s.trim());
-      const typeStr = parts[0] || 'select';
-      const type = typeStr.includes('url-test') || typeStr.includes('urltest') ? 'urltest' : 'select';
+      const typeStr = (parts[0] || 'select').toLowerCase();
+      let type: any = 'select';
+      if (typeStr.includes('url-test') || typeStr.includes('urltest')) type = 'urltest';
+      else if (typeStr.includes('fallback')) type = 'fallback';
+      else if (typeStr.includes('relay')) type = 'relay';
+      else if (typeStr.includes('load-balance')) type = 'load-balance';
+      else if (typeStr.includes('direct')) type = 'direct';
+      else if (typeStr.includes('reject')) type = 'reject';
       addGroup(name.trim(), type, {
         proxies: parts.slice(1),
       });
