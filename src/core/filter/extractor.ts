@@ -12,7 +12,7 @@ export function applyExtractionRules(
   }
 
   const selectedNodes: ProxyNode[] = [];
-  const matchedNodeIds = new Set<string>();
+  const processedNodeIds = new Set<string>();
 
   for (const rule of activeRules) {
     // 1. Source filter
@@ -22,6 +22,8 @@ export function applyExtractionRules(
     });
 
     for (const node of sourceMatchedNodes) {
+      if (processedNodeIds.has(node.id)) continue;
+
       // 2. Country filter
       if (rule.targetCountries && rule.targetCountries.length > 0) {
         if (!node.countryCode || !rule.targetCountries.includes(node.countryCode)) {
@@ -89,7 +91,7 @@ export function applyExtractionRules(
       }
 
       selectedNodes.push(nodeCopy);
-      matchedNodeIds.add(node.id);
+      processedNodeIds.add(node.id);
     }
   }
 
@@ -97,13 +99,23 @@ export function applyExtractionRules(
 }
 
 export function deduplicateNodes(nodes: ProxyNode[]): ProxyNode[] {
+  // First pass: physical deduplication by id or connection signature
+  const seenIds = new Set<string>();
+  const physicalUnique: ProxyNode[] = [];
+  for (const node of nodes) {
+    const key = node.id || `${node.server}:${node.port}:${node.uuid || node.password || node.name}`;
+    if (!seenIds.has(key)) {
+      seenIds.add(key);
+      physicalUnique.push(node);
+    }
+  }
+
+  // Second pass: name deduplication for actually different nodes
   const nameCounts = new Map<string, number>();
   const result: ProxyNode[] = [];
 
-  for (const node of nodes) {
+  for (const node of physicalUnique) {
     let name = node.name.trim() || `${node.type.toUpperCase()}-${node.server}`;
-    
-    // Ensure unique name
     if (nameCounts.has(name)) {
       const count = nameCounts.get(name)! + 1;
       nameCounts.set(name, count);

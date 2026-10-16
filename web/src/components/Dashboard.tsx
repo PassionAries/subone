@@ -1269,8 +1269,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-1">
                 {allAvailableSources.map(source => {
                   const isChecked = selectedSourceSet.has(source.id);
-                  const isCustom = source.type === 'custom' || source.id === 'custom';
-                  const isFilter = source.type === 'filter';
+                  const isCustom = source.type === 'manual' || source.type === 'custom' || source.id === 'custom' || !source.url;
                   const isPeeking = expandedGroupPreview === source.id;
                   const nodesList = source.nodes || [];
 
@@ -1298,17 +1297,13 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
 
                           <div className="min-w-0 flex-1 space-y-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {isFilter ? (
-                                <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-[#F4F1FA] text-[#6A4C9C] border border-[#E8E1F5] shrink-0">
-                                  ✨ 规则组
-                                </span>
-                              ) : isCustom ? (
+                              {isCustom ? (
                                 <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-[#FBF2EA] text-[#C45E38] border border-[#F2D8C9] shrink-0">
-                                  ⭐ 独立节点组
+                                  独立组
                                 </span>
                               ) : (
                                 <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-[#EAF2EE] text-[#2D6A5A] border border-[#D5E5DE] shrink-0">
-                                  ✈️ 网络订阅
+                                  订阅
                                 </span>
                               )}
 
@@ -1318,12 +1313,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                             </div>
 
                             <div className="text-[11px] text-[#8C877D] truncate">
-                              {isFilter ? (
-                                <span>
-                                  {source.filterConfig?.includeRegex ? `包含: ${source.filterConfig.includeRegex}` : '全选来源'}
-                                  {source.filterConfig?.excludeRegex ? ` | 排除: ${source.filterConfig.excludeRegex}` : ''}
-                                </span>
-                              ) : isCustom ? (
+                              {isCustom ? (
                                 <span>独立节点</span>
                               ) : (
                                 <span className="truncate">{source.url}</span>

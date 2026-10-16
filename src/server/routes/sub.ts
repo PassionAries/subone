@@ -17,7 +17,6 @@ import {
   getEffectiveRulesForProfile,
   getEffectiveSourcesForProfile,
   getEffectiveTemplateForProfile,
-  computeFilterSourceNodes,
 } from '../services/profile-service.js';
 
 export const subRouter = express.Router();
@@ -164,13 +163,7 @@ async function handleSourceSubRequest(req: express.Request, res: express.Respons
   }
 
   try {
-    let sourceNodes: ProxyNode[] = [];
-    if (matchedSource.type === 'filter') {
-      const allPhysicalNodes = await getEffectiveNodes();
-      sourceNodes = computeFilterSourceNodes(matchedSource, allPhysicalNodes);
-    } else {
-      sourceNodes = matchedSource.nodes || [];
-    }
+    let sourceNodes: ProxyNode[] = matchedSource.nodes || [];
 
     // 应用提取规则
     sourceNodes = applyExtractionRules(sourceNodes, appConfig.rules);

@@ -53,12 +53,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
   const [editingNetworkSource, setEditingNetworkSource] = useState<SubscriptionSource | null>(null);
   const [showImportNodesModal, setShowImportNodesModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
-  const [showFilterGroupModal, setShowFilterGroupModal] = useState(false);
-  const [editingFilterSource, setEditingFilterSource] = useState<SubscriptionSource | null>(null);
-  const [filterNameInput, setFilterNameInput] = useState('');
-  const [filterParentSources, setFilterParentSources] = useState<string[]>([]);
-  const [filterIncludeRegex, setFilterIncludeRegex] = useState('');
-  const [filterExcludeRegex, setFilterExcludeRegex] = useState('');
   const [renamingSource, setRenamingSource] = useState<SubscriptionSource | null>(null);
   const [newGroupNameInput, setNewGroupNameInput] = useState('');
 
@@ -94,114 +88,24 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
   // Internal search term for each source accordion: sourceId -> searchTerm
   const [sourceSearchTerms, setSourceSearchTerms] = useState<Record<string, string>>({});
 
-  // Partition sources: Custom Groups, Rule/Filter Groups, Network Sources
+  // Partition sources: Manual Node Groups vs Remote Subscriptions
   const customSources = useMemo(() => {
-    return sources.filter(s => s.type === 'custom' || s.id === 'custom').sort((a, b) => {
-      if (a.id === 'custom') return -1;
-      if (b.id === 'custom') return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [sources]);
-
-  const filterSources = useMemo(() => {
-    return sources.filter(s => s.type === 'filter').sort((a, b) => a.name.localeCompare(b.name));
+    return sources.filter(s => s.type === 'manual' || s.type === 'custom' || s.id === 'custom' || !s.url).sort((a, b) => a.name.localeCompare(b.name));
   }, [sources]);
 
   const networkSources = useMemo(() => {
-    return sources.filter(s => s.type !== 'custom' && s.id !== 'custom' && s.type !== 'filter');
+    return sources.filter(s => s.type !== 'manual' && s.type !== 'custom' && s.id !== 'custom' && !!s.url).sort((a, b) => a.name.localeCompare(b.name));
   }, [sources]);
 
-  // Unified list: Custom groups first, then Rule Groups, then Network Subscriptions
+  // Unified list: Manual groups first, then Network Subscriptions
   const unifiedSources = useMemo(() => {
-    return [...customSources, ...filterSources, ...networkSources];
-  }, [customSources, filterSources, networkSources]);
+    return [...customSources, ...networkSources];
+  }, [customSources, networkSources]);
 
-  // Total nodes count across all non-filter sources
+  // Total nodes count
   const totalNodesCount = useMemo(() => {
-    return sources.filter(s => s.type !== 'filter').reduce((acc, s) => acc + (s.nodes?.length || s.nodeCount || 0), 0);
+    return sources.reduce((acc, s) => acc + (s.nodes?.length || s.nodeCount || 0), 0);
   }, [sources]);
-
-  // Live preview nodes for rule group modal
-  const previewFilteredNodes = useMemo(() => {
-    const allAvailable = nodes || [];
-    let candidates = allAvailable;
-
-    if (filterParentSources.length > 0 && !filterParentSources.includes('ALL')) {
-      const pSet = new Set(filterParentSources);
-      candidates = candidates.filter(n => pSet.has(n.sourceId || 'custom'));
-    }
-
-    if (filterIncludeRegex.trim()) {
-      try {
-        const reg = new RegExp(filterIncludeRegex.trim(), 'i');
-        candidates = candidates.filter(n => reg.test(n.name));
-      } catch { }
-    }
-
-    if (filterExcludeRegex.trim()) {
-      try {
-        const reg = new RegExp(filterExcludeRegex.trim(), 'i');
-        candidates = candidates.filter(n => !reg.test(n.name));
-      } catch { }
-    }
-
-    return candidates;
-  }, [nodes, filterParentSources, filterIncludeRegex, filterExcludeRegex]);
-
-  const handleOpenCreateFilterGroup = () => {
-    setEditingFilterSource(null);
-    setFilterNameInput('');
-    setFilterParentSources(['ALL']);
-    setFilterIncludeRegex('');
-    setFilterExcludeRegex('');
-    setShowFilterGroupModal(true);
-  };
-
-  const handleOpenEditFilterGroup = (source: SubscriptionSource) => {
-    setEditingFilterSource(source);
-    setFilterNameInput(source.name);
-    setFilterParentSources(
-      source.filterConfig?.parentSourceIds && source.filterConfig.parentSourceIds.length > 0
-        ? source.filterConfig.parentSourceIds
-        : ['ALL']
-    );
-    setFilterIncludeRegex(source.filterConfig?.includeRegex || '');
-    setFilterExcludeRegex(source.filterConfig?.excludeRegex || '');
-    setShowFilterGroupModal(true);
-  };
-
-  const handleFilterGroupSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!filterNameInput.trim()) return;
-    setIsSubmitting(true);
-    try {
-      const parentIds = filterParentSources.includes('ALL') || filterParentSources.length === 0
-        ? []
-        : filterParentSources;
-      const filterConfig = {
-        parentSourceIds: parentIds,
-        includeRegex: filterIncludeRegex.trim(),
-        excludeRegex: filterExcludeRegex.trim(),
-      };
-      if (editingFilterSource) {
-        await onUpdateSource(editingFilterSource.id, {
-          name: filterNameInput.trim(),
-          filterConfig,
-        });
-      } else {
-        await onAddSource({
-          name: filterNameInput.trim(),
-          type: 'filter',
-          filterConfig,
-        });
-      }
-      setShowFilterGroupModal(false);
-    } catch (err: any) {
-      console.error('Failed to save filter group:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   // Toggle accordion expand
   const toggleExpand = (sourceId: string) => {
@@ -433,9 +337,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EAF2EE] border border-[#D5E5DE] text-[#2D6A5A] text-[11px] font-medium">
               <span>{networkSources.length} 网络订阅</span>
             </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F4F1FA] border border-[#E8E1F5] text-[#6A4C9C] text-[11px] font-medium">
-              <span>{filterSources.length} 规则组</span>
-            </span>
           </div>
         </div>
 
@@ -446,7 +347,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold btn-claude-primary rounded-xl shadow-2xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>添加节点</span>
+            <span>导入节点</span>
           </button>
 
           <button
@@ -469,19 +370,9 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
               setShowCreateGroupModal(true);
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold btn-claude-secondary rounded-xl shadow-2xs cursor-pointer"
-            title="新建独立的节点分组"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>新建独立组</span>
-          </button>
-
-          <button
-            onClick={handleOpenCreateFilterGroup}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold btn-claude-secondary rounded-xl shadow-2xs cursor-pointer"
-            title="基于节点来源与规则生成派生节点分组"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-[#6A4C9C]" />
-            <span>新建规则组</span>
+            <span>新建节点组</span>
           </button>
         </div>
       </div>
@@ -534,17 +425,13 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       {/* 类型徽章 */}
-                      {isFilter ? (
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#F4F1FA] text-[#6A4C9C] border border-[#E8E1F5] shrink-0">
-                          ✨ 规则组
-                        </span>
-                      ) : isCustom ? (
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#FBF2EA] text-[#C45E38] border border-[#F2D8C9] shrink-0">
-                          ⭐ 独立节点组
+                      {isCustom ? (
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#FBF2EA] text-[#C45E38] border border-[#F2D8C9] shrink-0 font-mono">
+                          独立组
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#EAF2EE] text-[#2D6A5A] border border-[#D5E5DE] shrink-0">
-                          ✈️ 网络订阅
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#EAF2EE] text-[#2D6A5A] border border-[#D5E5DE] shrink-0 font-mono">
+                          订阅
                         </span>
                       )}
 
@@ -568,27 +455,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
 
                     {/* 卡片副信息 */}
                     <div className="text-[11px] text-[#78746D] truncate">
-                      {isFilter ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span>
-                            节点来源: {
-                              !source.filterConfig?.parentSourceIds || source.filterConfig.parentSourceIds.length === 0 || source.filterConfig.parentSourceIds.includes('ALL')
-                                ? '全部来源'
-                                : source.filterConfig.parentSourceIds.map(pid => sources.find(s => s.id === pid)?.name || pid).join(', ')
-                            }
-                          </span>
-                          {source.filterConfig?.includeRegex && (
-                            <span className="px-1.5 py-0.2 rounded bg-[#FAF0EC] text-[#CC785C] font-mono text-[10px]">
-                              包含: {source.filterConfig.includeRegex}
-                            </span>
-                          )}
-                          {source.filterConfig?.excludeRegex && (
-                            <span className="px-1.5 py-0.2 rounded bg-red-50 text-red-600 font-mono text-[10px]">
-                              排除: {source.filterConfig.excludeRegex}
-                            </span>
-                          )}
-                        </div>
-                      ) : isCustom ? (
+                      {isCustom ? (
                         <span className="text-[#8C877D]">独立节点管理</span>
                       ) : (
                         <span className="font-mono select-all text-[#8C877D]">{source.url}</span>
@@ -604,64 +471,18 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                   </div>
                 </div>
 
-                {/* 右侧快捷操作按钮（统一小图标） */}
+                {/* 右侧快捷操作按钮 */}
                 <div
                   className="flex items-center gap-1 self-end sm:self-center shrink-0"
                   onClick={e => e.stopPropagation()}
                 >
-                  {/* 规则组专属操作 */}
-                  {isFilter && (
-                    <>
-                      <button
-                        onClick={() => handleOpenEditFilterGroup(source)}
-                        className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2] rounded-lg transition-colors cursor-pointer"
-                        title="编辑规则组配置"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => handleSingleRefresh(source.id)}
-                        disabled={isThisRefreshing}
-                        className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2] rounded-lg transition-colors cursor-pointer"
-                        title="重新匹配此规则组节点"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isThisRefreshing ? 'animate-spin text-[#CC785C]' : ''}`} />
-                      </button>
-
-                      <button
-                        onClick={() => onUpdateSource(source.id, { enabled: !source.enabled })}
-                        className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
-                        title={source.enabled !== false ? '已启用（点击停用此规则组，停用后不导出到客户端）' : '已停用（点击启用此规则组）'}
-                      >
-                        {source.enabled !== false ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#367A68]" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-[#9E9A91]" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          if (confirm(`确定要删除规则分组【${source.name}】吗？`)) {
-                            onDeleteSource(source.id);
-                          }
-                        }}
-                        className="p-1.5 text-[#9E9A91] hover:text-[#B85D3F] hover:bg-[#FAF0EC] rounded-lg transition-colors cursor-pointer"
-                        title="删除规则分组"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-
-                  {/* 自建组专属操作 */}
-                  {isCustom && !isFilter && (
+                  {/* 自建独立组操作 */}
+                  {isCustom && (
                     <>
                       <button
                         onClick={() => handleOpenBulkEditModal(source)}
                         className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
-                        title="编辑所有订阅文本"
+                        title="查看/编辑订阅文本"
                       >
                         <FileText className="w-3.5 h-3.5" />
                       </button>
@@ -669,7 +490,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                       <button
                         onClick={() => handleOpenImportModal(source.id)}
                         className="p-1.5 text-[#CC785C] hover:text-[#B85D3F] hover:bg-[#FAF0EC] rounded-lg transition-colors cursor-pointer"
-                        title="添加节点到此组"
+                        title="导入节点到此组"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -680,34 +501,44 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                           setNewGroupNameInput(source.name);
                         }}
                         className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
-                        title="重命名此节点组"
+                        title="重命名节点组"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
 
-                      {source.id !== 'custom' && (
-                        <button
-                          onClick={() => {
-                            if (confirm(`确定要删除独立节点组【${source.name}】及其包含的所有节点吗？`)) {
-                              onDeleteSource(source.id);
-                            }
-                          }}
-                          className="p-1.5 text-[#9E9A91] hover:text-[#B85D3F] hover:bg-[#FAF0EC] rounded-lg transition-colors cursor-pointer"
-                          title="删除此节点组"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => onUpdateSource(source.id, { enabled: !source.enabled })}
+                        className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
+                        title={source.enabled !== false ? '点击停用' : '点击启用'}
+                      >
+                        {source.enabled !== false ? (
+                          <CheckCircle2 className="w-4 h-4 text-[#367A68]" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-[#9E9A91]" />
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (confirm(`确定要删除节点组【${source.name}】吗？`)) {
+                            onDeleteSource(source.id);
+                          }
+                        }}
+                        className="p-1.5 text-[#9E9A91] hover:text-[#B85D3F] hover:bg-[#FAF0EC] rounded-lg transition-colors cursor-pointer"
+                        title="删除节点组"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </>
                   )}
 
                   {/* 网络订阅专属操作 */}
-                  {!isCustom && !isFilter && (
+                  {!isCustom && (
                     <>
                       <button
                         onClick={() => handleOpenEditNetworkModal(source)}
                         className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2] rounded-lg transition-colors cursor-pointer"
-                        title="编辑此订阅源（名称、URL或解析模式）"
+                        title="编辑订阅源"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -716,7 +547,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                         onClick={() => handleSingleRefresh(source.id)}
                         disabled={isThisRefreshing}
                         className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2] rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                        title="单独刷新此订阅"
+                        title="刷新订阅"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 text-[#CC785C] ${isThisRefreshing ? 'animate-spin' : ''}`} />
                       </button>
@@ -724,7 +555,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                       <button
                         onClick={() => onUpdateSource(source.id, { enabled: !source.enabled })}
                         className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
-                        title={source.enabled !== false ? '已启用（点击停用此订阅源，停用后不导出到客户端）' : '已停用（点击启用此订阅源）'}
+                        title={source.enabled !== false ? '点击停用' : '点击启用'}
                       >
                         {source.enabled !== false ? (
                           <CheckCircle2 className="w-4 h-4 text-[#367A68]" />
@@ -1368,170 +1199,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
         </div>
       )}
 
-      {/* 规则分组创建/编辑弹窗 */}
-      {showFilterGroupModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-[#FAF8F5] border border-[#E3DDD2] rounded-2xl p-5 max-w-xl w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E8E2D8] shrink-0">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#8C877D]" />
-                <h3 className="text-sm font-bold text-[#1F1E1D]">
-                  {editingFilterSource ? '编辑规则分组' : '新建规则分组'}
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowFilterGroupModal(false)}
-                className="text-xs text-[#9E9A91] hover:text-[#1F1E1D] p-1 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
 
-            <form onSubmit={handleFilterGroupSubmit} className="space-y-4 flex-1 overflow-y-auto pr-1">
-              {/* 1. 分组名称 */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1F1E1D] mb-1">
-                  分组名称 *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={filterNameInput}
-                  onChange={e => setFilterNameInput(e.target.value)}
-                  placeholder="例如: AI优选"
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
-                />
-              </div>
-
-              {/* 2. 节点来源 */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1F1E1D] mb-1.5">
-                  节点来源
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setFilterParentSources(['ALL'])}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${filterParentSources.includes('ALL') || filterParentSources.length === 0
-                      ? 'bg-[#CC785C] text-white shadow-2xs'
-                      : 'bg-white border border-[#E3DDD2] text-[#69655E] hover:bg-[#EFEAE2]'
-                      }`}
-                  >
-                    全部来源 ({nodes?.length || 0})
-                  </button>
-                  {sources.filter(s => s.type !== 'filter' && s.id !== editingFilterSource?.id).map(s => {
-                    const isSelected = !filterParentSources.includes('ALL') && filterParentSources.includes(s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          let next: string[];
-                          if (filterParentSources.includes('ALL')) {
-                            next = [s.id];
-                          } else if (isSelected) {
-                            next = filterParentSources.filter(id => id !== s.id);
-                            if (next.length === 0) next = ['ALL'];
-                          } else {
-                            next = [...filterParentSources, s.id];
-                          }
-                          setFilterParentSources(next);
-                        }}
-                        className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${isSelected
-                          ? 'bg-[#CC785C] text-white shadow-2xs'
-                          : 'bg-white border border-[#E3DDD2] text-[#69655E] hover:bg-[#EFEAE2]'
-                          }`}
-                      >
-                        <span>{s.type === 'custom' || s.id === 'custom' ? '⭐' : '✈️'}</span>
-                        <span>{s.name}</span>
-                        <span className="text-[10px] opacity-75">({s.nodes?.length || s.nodeCount || 0})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 3. 包含正则 / 关键词 */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1F1E1D] mb-1">
-                  包含规则 (正则 / 关键词)
-                </label>
-                <input
-                  type="text"
-                  value={filterIncludeRegex}
-                  onChange={e => setFilterIncludeRegex(e.target.value)}
-                  placeholder="留空不过滤，支持正则如 (香港|HK)"
-                  className="w-full px-3 py-2 text-xs font-mono bg-white border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
-                />
-              </div>
-
-              {/* 4. 排除正则 / 关键词 */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1F1E1D] mb-1">
-                  排除规则 (正则 / 关键词)
-                </label>
-                <input
-                  type="text"
-                  value={filterExcludeRegex}
-                  onChange={e => setFilterExcludeRegex(e.target.value)}
-                  placeholder="留空不排除，支持正则如 (官网|到期|流量)"
-                  className="w-full px-3 py-2 text-xs font-mono bg-white border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
-                />
-              </div>
-
-              {/* 5. 匹配预览 */}
-              <div className="p-3 bg-white border border-[#E3DDD2] rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#1F1E1D]">
-                    匹配预览 ({previewFilteredNodes.length} 个节点)
-                  </span>
-                </div>
-                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
-                  {previewFilteredNodes.length === 0 ? (
-                    <div className="text-center py-4 text-xs text-[#8C877D]">
-                      暂无节点匹配当前规则，请调整来源或规则
-                    </div>
-                  ) : (
-                    previewFilteredNodes.map(n => (
-                      <div
-                        key={n.id}
-                        className="flex items-center justify-between p-2 rounded-lg bg-[#FAF8F5] border border-[#ECE7DE] text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span>{n.countryEmoji || '🌐'}</span>
-                          <span className="font-medium text-[#1F1E1D] truncate">{n.name}</span>
-                          <span className="text-[10px] text-[#8C877D] shrink-0">({n.sourceName || '独立'})</span>
-                        </div>
-                        <span className="text-[10px] font-mono text-[#69655E] shrink-0">
-                          {n.server}:{n.port}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#E8E2D8] shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowFilterGroupModal(false)}
-                  className="px-3.5 py-1.5 text-xs font-medium btn-claude-secondary rounded-xl cursor-pointer"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !filterNameInput.trim()}
-                  className="px-4 py-1.5 text-xs font-semibold btn-claude-primary rounded-xl disabled:opacity-50 transition-all shadow-xs cursor-pointer"
-                >
-                  {isSubmitting ? '保存中...' : '保存规则分组'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

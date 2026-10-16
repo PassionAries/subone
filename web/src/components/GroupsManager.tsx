@@ -304,12 +304,10 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
   };
 
   const handleToggleUse = (sourceName: string) => {
-    const current = formData.use || [];
-    if (current.includes(sourceName)) {
-      setFormData({ ...formData, use: current.filter(u => u !== sourceName) });
-    } else {
-      setFormData({ ...formData, use: [...current, sourceName] });
-    }
+    const current: string[] = formData.sources || formData.use || [];
+    const exists = current.includes(sourceName);
+    const updated = exists ? current.filter((u: string) => u !== sourceName) : [...current, sourceName];
+    setFormData({ ...formData, sources: updated, use: updated });
   };
 
   const handleOpenYaml = () => {
@@ -879,70 +877,43 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
               </div>
 
               {(() => {
-                // Deduplicate sources by normalized key
-                const sourceMap = new Map<string, { tag: string; label: string; icon: string; nodeCount?: number; id: string }>();
-                sources.forEach(src => {
-                  const isInternalCustom = src.id === 'custom' || src.type === 'custom';
-                  const label = cleanName(src.name, sourceIcons) || (isInternalCustom ? '独立节点组' : src.name);
-                  const tag = getSourceTag(src, sourceIcons);
-                  const icon = getSourcePrefix(src, sourceIcons);
-                  const key = isInternalCustom ? 'custom' : label.toLowerCase();
-                  const count = isInternalCustom ? customNodes.length : (src.nodeCount || src.nodes?.length || 0);
+                const availableSources = sources.filter(s => s.enabled);
+                if (availableSources.length === 0) return null;
 
-                  if (!sourceMap.has(key) || (count || 0) > (sourceMap.get(key)!.nodeCount || 0)) {
-                    sourceMap.set(key, {
-                      id: src.id,
-                      tag,
-                      label,
-                      icon,
-                      nodeCount: count,
-                    });
-                  }
-                });
-
-                if (customNodes.length > 0 && !sourceMap.has('custom')) {
-                  sourceMap.set('custom', {
-                    id: 'custom',
-                    tag: customSourceTag,
-                    label: customSourceName,
-                    icon: sourceIcons?.custom || '🖥️',
-                    nodeCount: customNodes.length,
-                  });
-                }
-
-                const uniqueSourceList = Array.from(sourceMap.values());
-                if (uniqueSourceList.length === 0) return null;
+                const currentSources: string[] = formData.sources || formData.use || [];
 
                 return (
                   <div className="space-y-2 bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E8E4DC]">
                     <div className="flex items-center justify-between">
-                      <label className="font-bold text-[#1F1E1D] flex items-center gap-1.5">
-                        <Zap className="w-3.5 h-3.5 text-[#CC785C]" />
-                        <span>挂载订阅源 (Use - 展开该源所有节点)</span>
+                      <label className="font-semibold text-[#1F1E1D] text-xs">
+                        <span>包含节点源</span>
                       </label>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {uniqueSourceList.map(src => {
-                        const isSelected = (formData.use || []).some(
-                          u => cleanName(u, sourceIcons).toLowerCase() === src.label.toLowerCase() ||
-                            u.toLowerCase() === src.label.toLowerCase() ||
-                            (src.id === 'custom' && (cleanName(u, sourceIcons) === '自建节点' || cleanName(u, sourceIcons) === '独立节点组' || cleanName(u, sourceIcons) === '手工自建' || u === 'custom'))
+                      {availableSources.map(src => {
+                        const count = src.nodes?.length ?? (src.nodeCount || 0);
+                        const isSelected = currentSources.some(
+                          (u: string) => u === src.name ||
+                            u === src.id ||
+                            cleanName(u, sourceIcons).toLowerCase() === cleanName(src.name, sourceIcons).toLowerCase()
                         );
+                        const isManual = src.type === 'manual' || src.type === 'custom' || src.id === 'custom' || !src.url;
+
                         return (
                           <button
                             key={src.id}
                             type="button"
-                            onClick={() => handleToggleUse(src.label)}
+                            onClick={() => handleToggleUse(src.name)}
                             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${isSelected
                               ? 'bg-[#CC785C] text-white border-[#CC785C]'
                               : 'bg-white text-[#59554E] border-[#E3DDD2] hover:border-[#CC785C]/60'
                               }`}
                           >
-                            <span className="text-xs">{src.icon}</span>
-                            <span>{src.label}</span>
-                            {src.nodeCount !== undefined && (
-                              <span className="opacity-80 text-[10px]">({src.nodeCount}节点)</span>
-                            )}
+                            <span className="text-[10px] px-1 py-0.2 rounded bg-black/5 font-mono">
+                              {isManual ? '独立组' : '订阅'}
+                            </span>
+                            <span>{src.name}</span>
+                            <span className="opacity-80 text-[10px]">({count}节点)</span>
                           </button>
                         );
                       })}
@@ -998,13 +969,13 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                   {formData.proxies && formData.proxies.length > 0 ? (
                     <span className="text-[#B85D3F] font-semibold"> [{formData.proxies.join(', ')}]</span>
                   ) : (
-                    <span className="text-[#8C877D]"> [自动引用符合条件的节点/来源]</span>
+                    <span className="text-[#8C877D]"> [按来源与正则匹配节点]</span>
                   )}
-                  {formData.use && formData.use.length > 0 && (
-                    <span>，并挂载订阅源: <strong className="text-[#CC785C]">{formData.use.join(', ')}</strong></span>
+                  {(formData.sources || formData.use) && (formData.sources || formData.use)!.length > 0 && (
+                    <span>，节点源: <strong className="text-[#CC785C]">{(formData.sources || formData.use)!.join(', ')}</strong></span>
                   )}
                   {formData.filter && (
-                    <span>，且应用名称过滤正则: <code className="text-[#CC785C]">{formData.filter}</code></span>
+                    <span>，名称正则: <code className="text-[#CC785C]">{formData.filter}</code></span>
                   )}
                 </div>
               </div>

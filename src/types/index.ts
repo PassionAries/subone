@@ -112,23 +112,18 @@ export interface ProxyNode {
   raw?: any;
 }
 
-export interface SourceFilterConfig {
-  parentSourceIds?: string[]; // 选中的节点来源，为空代表全部来源
-  includeRegex?: string;      // 包含正则/关键词
-  excludeRegex?: string;      // 排除正则/关键词
-}
+export type SourceType = 'remote' | 'manual';
 
 export interface SubscriptionSource {
   id: string;
   name: string;
-  url: string;
+  type: SourceType | string;
+  url?: string;
   enabled: boolean;
-  type?: 'auto' | 'base64' | 'clash' | 'singbox' | 'custom' | 'filter';
   customUserAgent?: string;
   lastUpdated?: string;
   nodeCount?: number;
   nodes?: ProxyNode[];
-  filterConfig?: SourceFilterConfig;
 }
 
 export interface ExtractionRule {
@@ -164,8 +159,9 @@ export interface ProxyGroupItem {
   id: string;
   name: string;
   type: 'select' | 'urltest' | 'fallback' | 'load-balance' | 'relay' | 'direct' | 'reject';
+  sources?: string[];
+  use?: string[]; // compatibility alias for sources
   proxies?: string[];
-  use?: string[];
   filter?: string;
   tolerance?: number;
   url?: string;

@@ -19,274 +19,42 @@ import {
   setGlobalNodesCache,
 } from '../context.js';
 
-export function ensureCustomSource(config: AppConfig): SubscriptionSource {
-  // Remove demo sources if any
-  config.sources = (config.sources || []).filter(s => s.id !== 'src-demo-1' && !s.name.includes('示例订阅源'));
-
-  let customSrc = config.sources.find(s => s.id === 'custom' || s.type === 'custom');
-  if (!customSrc) {
-    customSrc = {
-      id: 'custom',
-      name: '独立节点组',
-      url: '',
+export function ensureCustomSource(config: AppConfig): SubscriptionSource | undefined {
+  if (!config.sources || config.sources.length === 0) {
+    const defaultManual: SubscriptionSource = {
+      id: `manual-${Date.now()}`,
+      name: '自建节点',
+      type: 'manual',
       enabled: true,
-      type: 'custom',
       nodeCount: 0,
       nodes: [],
     };
-    config.sources.unshift(customSrc);
-  } else {
-    if (!customSrc.name) customSrc.name = '独立节点组';
-    customSrc.type = 'custom';
-    if (!customSrc.nodes) customSrc.nodes = [];
-    customSrc.nodeCount = customSrc.nodes.length;
+    config.sources = [defaultManual];
+    return defaultManual;
   }
-  return customSrc;
-}
-
-export function computeFilterSourceNodes(
-  filterSource: SubscriptionSource,
-  availablePhysicalNodes: ProxyNode[]
-): ProxyNode[] {
-  const cfg = filterSource.filterConfig || {};
-  let candidates = availablePhysicalNodes;
-
-  // 1. Filter by parentSourceIds if specified
-  if (Array.isArray(cfg.parentSourceIds) && cfg.parentSourceIds.length > 0 && !cfg.parentSourceIds.includes('ALL')) {
-    const parentSet = new Set(cfg.parentSourceIds);
-    candidates = candidates.filter(n => parentSet.has(n.sourceId || 'custom'));
-  }
-
-  // 2. Include regex / keyword
-  if (cfg.includeRegex && cfg.includeRegex.trim()) {
-    try {
-      const reg = new RegExp(cfg.includeRegex.trim(), 'i');
-      candidates = candidates.filter(n => reg.test(n.name));
-    } catch (e: any) {
-      console.warn(`[FilterSource] Invalid includeRegex in source ${filterSource.name}:`, e.message);
-    }
-  }
-
-  // 3. Exclude regex / keyword
-  if (cfg.excludeRegex && cfg.excludeRegex.trim()) {
-    try {
-      const reg = new RegExp(cfg.excludeRegex.trim(), 'i');
-      candidates = candidates.filter(n => !reg.test(n.name));
-    } catch (e: any) {
-      console.warn(`[FilterSource] Invalid excludeRegex in source ${filterSource.name}:`, e.message);
-    }
-  }
-
-  return candidates;
+  return config.sources.find(s => s.type === 'manual' || s.id === 'custom');
 }
 
 export function collectNodesFromSources(config: AppConfig): ProxyNode[] {
-  ensureCustomSource(config);
-  const physicalNodes: ProxyNode[] = [];
-
-  // Pass 1: Collect all raw nodes from non-filter physical sources
-  config.sources.forEach(s => {
-    if (s.type !== 'filter' && s.enabled && s.nodes && s.nodes.length > 0) {
+  const nodes: ProxyNode[] = [];
+  (config.sources || []).forEach(s => {
+    if (s.enabled && Array.isArray(s.nodes)) {
       s.nodes.forEach(n => {
         n.sourceName = s.name;
         n.sourceId = s.id;
+        nodes.push(n);
       });
-      physicalNodes.push(...s.nodes);
     }
   });
-
-  // Pass 2: Recompute nodes for all filter sources
-  config.sources.forEach(s => {
-    if (s.type === 'filter') {
-      if (s.enabled) {
-        const derived = computeFilterSourceNodes(s, physicalNodes);
-        s.nodes = derived;
-        s.nodeCount = derived.length;
-        s.lastUpdated = new Date().toISOString();
-      } else {
-        s.nodes = [];
-        s.nodeCount = 0;
-      }
-    }
-  });
-
-  return physicalNodes;
+  return nodes;
 }
 
-export function ensureCustomProxyGroup(config: AppConfig): boolean {
-  const customSrc = config.sources?.find(s => s.id === 'custom' || s.type === 'custom');
-  if (!customSrc) return false;
-
-  if (customSrc.name === '自建节点' || customSrc.name === '独立节点') {
-    customSrc.name = '独立节点组';
-  }
-  const icons = config.settings?.sourceIcons;
-  const srcName = cleanSourceOrGroupName(customSrc.name || '独立节点组', icons);
-  const targetTag = formatSourceGroupTag(customSrc, icons);
-
-  // Find any existing group associated with this custom source
-  const existingGroup = config.proxyGroups.find(g => 
-    g.id === 'grp-src-custom' ||
-    g.id === `grp-src-${customSrc.id}` ||
-    cleanSourceOrGroupName(g.name, icons).toLowerCase() === srcName.toLowerCase() ||
-    cleanSourceOrGroupName(g.name).toLowerCase() === '自建节点' ||
-    cleanSourceOrGroupName(g.name).toLowerCase() === '独立节点' ||
-    cleanSourceOrGroupName(g.name).toLowerCase() === '独立节点组'
-  );
-
-  if (existingGroup) {
-    let changed = false;
-    const oldName = existingGroup.name;
-    if (existingGroup.name !== targetTag || !existingGroup.use || existingGroup.use[0] !== srcName || existingGroup.id !== 'grp-src-custom') {
-      existingGroup.id = 'grp-src-custom';
-      existingGroup.name = targetTag;
-      existingGroup.use = [srcName];
-      existingGroup.type = 'select';
-      changed = true;
-    }
-
-    // Remove any stale legacy duplicate groups (e.g. old "⚡️ 自建节点", "⚡️ 独立节点组")
-    const prevLen = config.proxyGroups.length;
-    config.proxyGroups = config.proxyGroups.filter(g => {
-      if (g === existingGroup) return true;
-      const c = cleanSourceOrGroupName(g.name).toLowerCase();
-      if (c === '自建节点' || c === '独立节点' || c === '独立节点组') return false;
-      return true;
-    });
-    if (config.proxyGroups.length !== prevLen) changed = true;
-
-    // Update references in other groups (e.g. 🚀 节点选择, 🤖 AI 服务, etc.)
-    config.proxyGroups.forEach(grp => {
-      if (grp !== existingGroup) {
-        if (grp.use) {
-          const newUse = grp.use.map(u => {
-            const c = cleanSourceOrGroupName(u).toLowerCase();
-            return c === '自建节点' || c === '独立节点' || c === '独立节点组' || u === oldName ? srcName : u;
-          });
-          if (JSON.stringify(newUse) !== JSON.stringify(grp.use)) {
-            grp.use = newUse;
-            changed = true;
-          }
-        }
-        if (grp.proxies) {
-          const newProxies = grp.proxies.map(p => {
-            const c = cleanSourceOrGroupName(p).toLowerCase();
-            return c === '自建节点' || c === '独立节点' || c === '独立节点组' || p === oldName ? targetTag : p;
-          });
-          if (JSON.stringify(newProxies) !== JSON.stringify(grp.proxies)) {
-            grp.proxies = newProxies;
-            changed = true;
-          }
-        }
-      }
-    });
-
-    return changed;
-  }
-
-  // If no existing group, only create one if there are nodes
-  if (!customSrc.nodes || customSrc.nodes.length === 0) return false;
-
-  const customGroup: ProxyGroupItem = {
-    id: 'grp-src-custom',
-    name: targetTag,
-    type: 'select',
-    use: [srcName],
-  };
-  config.proxyGroups.push(customGroup);
-
-  const mainSelector = config.proxyGroups.find(g => g.name === '🚀 节点选择');
-  if (mainSelector) {
-    if (!mainSelector.proxies) mainSelector.proxies = [];
-    if (!mainSelector.proxies.includes(targetTag)) {
-      mainSelector.proxies.unshift(targetTag);
-    }
-  }
-  return true;
+export function ensureCustomProxyGroup(_config: AppConfig): boolean {
+  return false;
 }
 
-export function ensureAllSourceProxyGroups(config: AppConfig): boolean {
-  let changed = false;
-  const enabledSources = (config.sources || []).filter(s => s.enabled);
-  const nameMigrationMap = new Map<string, string>();
-
-  const icons = config.settings?.sourceIcons;
-  enabledSources.forEach(s => {
-    const sClean = cleanSourceOrGroupName(s.name || '', icons);
-    if (!sClean) return;
-    const targetGroupTag = formatSourceGroupTag(s, icons);
-    const targetGroupId = s.id === 'custom' ? 'grp-src-custom' : `grp-src-${s.id}`;
-
-    const existingGroup = config.proxyGroups.find(g => {
-      if (g.id === targetGroupId) return true;
-      if (s.id === 'custom' && g.id === 'grp-src-custom') return true;
-      const gClean = cleanSourceOrGroupName(g.name, icons).toLowerCase();
-      return gClean === sClean.toLowerCase();
-    });
-
-    if (existingGroup) {
-      if (existingGroup.name !== targetGroupTag) {
-        nameMigrationMap.set(existingGroup.name, targetGroupTag);
-        existingGroup.name = targetGroupTag;
-        changed = true;
-      }
-      if (existingGroup.id !== targetGroupId) {
-        existingGroup.id = targetGroupId;
-        changed = true;
-      }
-      if (!existingGroup.use || existingGroup.use[0] !== sClean) {
-        existingGroup.use = [sClean];
-        changed = true;
-      }
-    } else {
-      const newGroup: ProxyGroupItem = {
-        id: targetGroupId,
-        name: targetGroupTag,
-        type: s.type === 'custom' ? 'select' : 'urltest',
-        use: [sClean],
-        tolerance: 50,
-        interval: 300,
-        url: 'https://www.google.com/generate_204',
-      };
-      config.proxyGroups.push(newGroup);
-      changed = true;
-    }
-  });
-
-  // Migrate references in all proxyGroups
-  enabledSources.forEach(s => {
-    const targetTag = formatSourceGroupTag(s, icons);
-    nameMigrationMap.set(`⚡️ ${s.name}`, targetTag);
-    nameMigrationMap.set(`✨ ${s.name}`, targetTag);
-    nameMigrationMap.set(`🖥️ ${s.name}`, targetTag);
-    nameMigrationMap.set(s.name, targetTag);
-  });
-
-  config.proxyGroups.forEach(grp => {
-    if (grp.proxies) {
-      let pChanged = false;
-      const newProxies = grp.proxies.map(p => {
-        const matchedSource = enabledSources.find(s => {
-          const sClean = cleanSourceOrGroupName(s.name, icons).toLowerCase();
-          return cleanSourceOrGroupName(p, icons).toLowerCase() === sClean;
-        });
-        if (matchedSource) {
-          const canonicalTag = formatSourceGroupTag(matchedSource, icons);
-          if (p !== canonicalTag) {
-            pChanged = true;
-            return canonicalTag;
-          }
-        }
-        return p;
-      });
-      if (pChanged) {
-        grp.proxies = newProxies;
-        changed = true;
-      }
-    }
-  });
-
-  return changed;
+export function ensureAllSourceProxyGroups(_config: AppConfig): boolean {
+  return false;
 }
 
 export async function refreshAllSources(config: AppConfig): Promise<ProxyNode[]> {
@@ -400,19 +168,13 @@ export async function getEffectiveNodesForProfile(profile: SubscriptionProfile):
   return filtered;
 }
 
-export function getEffectiveGroupsForProfile(profile: SubscriptionProfile, effectiveNodes?: ProxyNode[]): ProxyGroupItem[] {
+export function getEffectiveGroupsForProfile(profile: SubscriptionProfile, _effectiveNodes?: ProxyNode[]): ProxyGroupItem[] {
   const appConfig = getAppConfig();
-  let configChanged = false;
-  if (ensureCustomProxyGroup(appConfig)) configChanged = true;
-  if (ensureAllSourceProxyGroups(appConfig)) configChanged = true;
-  if (configChanged) {
-    saveAppConfig();
-  }
 
   let groups: ProxyGroupItem[];
   if (Array.isArray(profile.selectedGroupIds) && profile.selectedGroupIds.length > 0) {
     const set = new Set(profile.selectedGroupIds);
-    groups = appConfig.proxyGroups.filter(g => set.has(g.id));
+    groups = (appConfig.proxyGroups || []).filter(g => set.has(g.id));
 
     // Recursively ensure any groups referenced by selected groups in proxies list are also included
     const includedGroupNames = new Set(groups.map(g => g.name));
@@ -431,10 +193,7 @@ export function getEffectiveGroupsForProfile(profile: SubscriptionProfile, effec
       });
 
       if (referencedGroupNames.size > 0) {
-        const additionalGroups = appConfig.proxyGroups.filter(g =>
-          referencedGroupNames.has(g.name) ||
-          Array.from(referencedGroupNames).some(r => cleanSourceOrGroupName(r).toLowerCase() === cleanSourceOrGroupName(g.name).toLowerCase())
-        );
+        const additionalGroups = (appConfig.proxyGroups || []).filter(g => referencedGroupNames.has(g.name));
         additionalGroups.forEach(ag => {
           if (!includedGroupNames.has(ag.name)) {
             includedGroupNames.add(ag.name);
@@ -445,117 +204,25 @@ export function getEffectiveGroupsForProfile(profile: SubscriptionProfile, effec
       }
     }
   } else {
-    groups = appConfig.proxyGroups;
+    groups = appConfig.proxyGroups || [];
   }
-  let mappedGroups = groups.map(g => ({
+
+  return groups.map(g => ({
     ...g,
+    sources: g.sources || g.use,
+    use: g.sources || g.use,
     proxies: g.proxies ? [...g.proxies] : undefined,
-    use: g.use ? [...g.use] : undefined,
   }));
-
-  if (Array.isArray(effectiveNodes) && effectiveNodes.length > 0) {
-    const activeSourceIds = new Set<string>();
-    const activeSourceNames = new Set<string>();
-    let hasCustomNodes = false;
-
-    const icons = appConfig.settings?.sourceIcons;
-    effectiveNodes.forEach(n => {
-      const sId = (n.sourceId || '').trim();
-      const sName = (n.sourceName || '').trim();
-      if (sId) activeSourceIds.add(sId.toLowerCase());
-      if (sName) {
-        activeSourceNames.add(sName.toLowerCase());
-        activeSourceNames.add(cleanSourceOrGroupName(sName, icons).toLowerCase());
-      }
-      if (sId === 'custom' || sId.startsWith('custom') || sName === '自建节点' || sName === '独立节点组') {
-        hasCustomNodes = true;
-      }
-    });
-
-    // Also include filter sources that have nodes
-    appConfig.sources.forEach(s => {
-      if (s.type === 'filter' && s.enabled && Array.isArray(s.nodes) && s.nodes.length > 0) {
-        activeSourceIds.add(s.id.toLowerCase());
-        activeSourceNames.add(s.name.toLowerCase());
-        activeSourceNames.add(cleanSourceOrGroupName(s.name, icons).toLowerCase());
-      }
-    });
-
-    const isProtectedGroup = (g: ProxyGroupItem) => {
-      const id = (g.id || '').trim();
-      const name = (g.name || '').trim();
-      return (
-        id === 'grp-select' ||
-        id === 'grp-auto' ||
-        id === 'grp-manual' ||
-        name === '🚀 节点选择' ||
-        name === '👉 手动选择' ||
-        name === '♻️ 自动选择' ||
-        name === '🎯 本地直连'
-      );
-    };
-
-    const deadGroupNames = new Set<string>();
-    mappedGroups = mappedGroups.filter(g => {
-      if (isProtectedGroup(g)) return true;
-      const gClean = cleanSourceOrGroupName(g.name, icons).toLowerCase();
-      const isCustomGrp = g.id === 'grp-src-custom' || gClean === '自建节点' || gClean === '独立节点组';
-      const isDedicatedSourceGroup = g.id.startsWith('grp-src-') || isCustomGrp;
-      if (!isDedicatedSourceGroup) return true;
-
-      if (isCustomGrp) {
-        if (!hasCustomNodes) {
-          deadGroupNames.add(g.name);
-          return false;
-        }
-        return true;
-      }
-
-      // Dedicated subscription source group
-      const useSrc = (g.use && g.use.length === 1) ? cleanSourceOrGroupName(g.use[0], icons).toLowerCase() : gClean;
-      const isActive =
-        activeSourceNames.has(gClean) ||
-        activeSourceNames.has(useSrc) ||
-        (g.id.startsWith('grp-src-') && activeSourceIds.has(g.id.replace('grp-src-', '').toLowerCase()));
-      if (!isActive) {
-        deadGroupNames.add(g.name);
-        return false;
-      }
-      return true;
-    });
-
-    if (deadGroupNames.size > 0) {
-      mappedGroups.forEach(g => {
-        if (g.proxies) {
-          g.proxies = g.proxies.filter(p => !deadGroupNames.has(p));
-        }
-        if (g.use) {
-          g.use = g.use.filter(u => !deadGroupNames.has(u));
-        }
-      });
-    }
-  }
-
-  return mappedGroups;
 }
 
-export function getEffectiveSourcesForProfile(profile?: SubscriptionProfile, effectiveNodes?: ProxyNode[]): SubscriptionSource[] {
+export function getEffectiveSourcesForProfile(profile?: SubscriptionProfile, _effectiveNodes?: ProxyNode[]): SubscriptionSource[] {
   const appConfig = getAppConfig();
-  if (!profile) return appConfig.sources;
+  if (!profile) return appConfig.sources || [];
   if (Array.isArray(profile.nodeFilter?.sourceIds) && profile.nodeFilter.sourceIds.length > 0) {
     const selectedSourceIds = new Set(profile.nodeFilter.sourceIds);
-    return appConfig.sources.filter(s => selectedSourceIds.has(s.id) || (s.id === 'custom' && selectedSourceIds.has('custom')));
+    return (appConfig.sources || []).filter(s => selectedSourceIds.has(s.id));
   }
-  const usedSourceIds = new Set<string>();
-  if (Array.isArray(effectiveNodes)) {
-    effectiveNodes.forEach(n => {
-      if (n.sourceId) usedSourceIds.add(n.sourceId);
-    });
-  }
-  if (usedSourceIds.size > 0) {
-    return appConfig.sources.filter(s => usedSourceIds.has(s.id) || (s.id === 'custom' && usedSourceIds.has('custom')));
-  }
-  return appConfig.sources;
+  return appConfig.sources || [];
 }
 
 export function getEffectiveRulesForProfile(profile: SubscriptionProfile): UnifiedRuleItem[] {

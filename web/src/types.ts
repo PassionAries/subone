@@ -25,11 +25,10 @@ export interface SubscriptionSource {
   name: string;
   url: string;
   enabled: boolean;
-  type?: 'auto' | 'base64' | 'clash' | 'singbox' | 'custom' | 'filter';
+  type?: 'remote' | 'manual' | 'auto' | 'base64' | 'clash' | 'singbox' | 'custom' | string;
   lastUpdated?: string;
   nodeCount?: number;
   nodes?: ProxyNode[];
-  filterConfig?: SourceFilterConfig;
 }
 
 export interface ExtractionRule {
@@ -66,6 +65,7 @@ export interface ProxyGroupItem {
   name: string;
   type: 'select' | 'urltest' | 'fallback' | 'load-balance' | 'relay' | 'direct' | 'reject';
   proxies?: string[];
+  sources?: string[];
   use?: string[];
   filter?: string;
   tolerance?: number;

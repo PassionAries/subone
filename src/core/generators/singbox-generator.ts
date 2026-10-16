@@ -367,17 +367,38 @@ export function generateSingboxConfig(
   if (!doc || typeof doc !== 'object') {
     doc = {};
   }
+
+  // Deduplicate candidate nodes strictly by connection signature or ID
   const allNodesMap = new Map<string, ProxyNode>();
-  nodes.forEach(n => allNodesMap.set(n.name, n));
+  nodes.forEach(n => {
+    const key = n.id || `${n.server}:${n.port}:${n.name}`;
+    if (!allNodesMap.has(key)) {
+      allNodesMap.set(key, n);
+    }
+  });
+
+  // 建立 nodeId -> source 映射
+  const nodeSourceMap = new Map<string, { id: string; name: string }>();
   sources.forEach(s => {
-    if ((s.type === 'filter' || s.type === 'custom' || !s.url || !s.url.startsWith('http')) && Array.isArray(s.nodes)) {
-      s.nodes.forEach(n => {
-        if (!allNodesMap.has(n.name)) allNodesMap.set(n.name, n);
+    if (Array.isArray(s.nodes)) {
+      s.nodes.forEach((n: any) => {
+        const key = n.id || `${n.server}:${n.port}:${n.name}`;
+        nodeSourceMap.set(key, { id: s.id, name: s.name });
+        nodeSourceMap.set(n.name, { id: s.id, name: s.name });
       });
     }
   });
+
   const allCandidateNodes = Array.from(allNodesMap.values());
-  const proxyOutbounds = allCandidateNodes.map(nodeToSingboxOutbound);
+  const proxyOutbounds = allCandidateNodes.map(n => {
+    const ob: any = nodeToSingboxOutbound(n);
+    if (ob) {
+      const src = nodeSourceMap.get(n.id) || nodeSourceMap.get(n.name);
+      ob._sourceName = n.sourceName || src?.name || '';
+      ob._sourceId = n.sourceId || src?.id || '';
+    }
+    return ob;
+  }).filter(Boolean);
 
   doc = injectUnifiedToSingbox(doc, proxyOutbounds, proxyGroups, rulesList, sources);
 
@@ -396,197 +417,19 @@ export function injectUnifiedToSingbox(
 
   // 1. Build Custom Proxy Groups (Selectors / URLTest)
   const allNodeTags = proxyOutbounds.map(p => p.tag);
-
-  const effectiveGroups: ProxyGroupItem[] = proxyGroups.map(g => ({
-    ...g,
-    proxies: g.proxies ? [...g.proxies] : undefined,
-    use: g.use ? [...g.use] : undefined,
-  }));
-  const existingGroupNames = new Set(effectiveGroups.map(g => g.name.toLowerCase()));
-  const existingCleanNames = new Set(effectiveGroups.map(g => cleanSourceOrGroupName(g.name).toLowerCase()));
-
-  // Discover unique subscription sources from proxyOutbounds
-  const discoveredSources = new Map<string, { groupTag: string; sourceName: string; isCustom: boolean }>();
-  proxyOutbounds.forEach(p => {
-    const sName = (p._sourceName || '').trim();
-    const sId = (p._sourceId || '').trim();
-    const isCustom = sId === 'custom' || sId.startsWith('custom');
-    const key = isCustom ? (sId || 'custom') : sName.toLowerCase();
-
-    if (!discoveredSources.has(key)) {
-      const matchedSource = sources.find((s: any) => s.id === sId || cleanSourceOrGroupName(s.name).toLowerCase() === cleanSourceOrGroupName(sName).toLowerCase());
-      const isCustomSrc = isCustom || matchedSource?.type === 'custom' || matchedSource?.id === 'custom';
-      const isFilterSrc = matchedSource?.type === 'filter';
-      const sourceName = cleanSourceOrGroupName(sName || (isCustomSrc ? '独立节点组' : sName));
-      const groupTag = formatSourceGroupTag({ name: sourceName, type: isCustomSrc ? 'custom' : (isFilterSrc ? 'filter' : 'remote'), id: sId });
-      discoveredSources.set(key, {
-        groupTag,
-        sourceName,
-        isCustom: isCustomSrc,
-      });
-    }
-  });
-
-  // Protected groups that should never be overwritten or matched as a source group
-  const isProtectedGroup = (g: ProxyGroupItem) => {
-    const id = (g.id || '').trim();
-    const name = (g.name || '').trim();
-    return (
-      id === 'grp-select' ||
-      id === 'grp-auto' ||
-      id === 'grp-manual' ||
-      name === '🚀 节点选择' ||
-      name === '👉 手动选择' ||
-      name === '♻️ 自动选择' ||
-      name === '🎯 本地直连'
-    );
-  };
-
-  // Prune any dedicated source groups from effectiveGroups that have NO active nodes in discoveredSources
-  const activeDiscoveredTags = new Set(Array.from(discoveredSources.values()).map(s => s.groupTag.toLowerCase()));
-  const activeDiscoveredNames = new Set(Array.from(discoveredSources.values()).map(s => s.sourceName.toLowerCase()));
-  sources.forEach(s => {
-    if (s.name) {
-      activeDiscoveredNames.add(s.name.toLowerCase());
-      activeDiscoveredNames.add(cleanSourceOrGroupName(s.name).toLowerCase());
-    }
-  });
-  const hasDiscoveredCustom = Array.from(discoveredSources.values()).some(s => s.isCustom);
-
-  const deadGroupTags = new Set<string>();
-  for (let i = effectiveGroups.length - 1; i >= 0; i--) {
-    const g = effectiveGroups[i];
-    if (isProtectedGroup(g)) continue;
-    const gClean = cleanSourceOrGroupName(g.name).toLowerCase();
-    const isCustomGrp = g.id === 'grp-src-custom' || gClean === '自建节点' || gClean === '独立节点组';
-    const isDedicatedSourceGroup = g.id.startsWith('grp-src-') || isCustomGrp;
-    if (isDedicatedSourceGroup) {
-      if (isCustomGrp) {
-        if (!hasDiscoveredCustom) {
-          deadGroupTags.add(g.name);
-          effectiveGroups.splice(i, 1);
-        }
-      } else {
-        const useSrc = (g.use && g.use.length === 1) ? cleanSourceOrGroupName(g.use[0]).toLowerCase() : gClean;
-        const isActive = activeDiscoveredTags.has(g.name.toLowerCase()) ||
-          activeDiscoveredNames.has(gClean) ||
-          activeDiscoveredNames.has(useSrc);
-        if (!isActive) {
-          deadGroupTags.add(g.name);
-          effectiveGroups.splice(i, 1);
-        }
-      }
-    }
-  }
-
-  // Clean up references to deadGroupTags across all remaining groups
-  if (deadGroupTags.size > 0) {
-    effectiveGroups.forEach(grp => {
-      if (grp.proxies) {
-        grp.proxies = grp.proxies.filter(p => !deadGroupTags.has(p));
-      }
-      if (grp.use) {
-        grp.use = grp.use.filter(u => {
-          const cleanU = cleanSourceOrGroupName(u).toLowerCase();
-          if (deadGroupTags.has(u)) return false;
-          if (cleanU === '自建节点' || cleanU === '独立节点组') return hasDiscoveredCustom;
-          return activeDiscoveredNames.has(cleanU) || cleanU === 'all' || cleanU === 'proxy';
-        });
-      }
-    });
-  }
-
-  // Automatically add dedicated URLTest / select group for any discovered source that does not yet have a group
-  discoveredSources.forEach(info => {
-    const cleanName = info.sourceName.toLowerCase();
-    const existingGrp = effectiveGroups.find(g => {
-      if (isProtectedGroup(g)) return false;
-      const gClean = cleanSourceOrGroupName(g.name).toLowerCase();
-      if (info.isCustom) {
-        return (
-          g.id === 'grp-src-custom' ||
-          g.id === `grp-src-${info.sourceName}` ||
-          gClean === '自建节点' ||
-          gClean === '独立节点组' ||
-          gClean === cleanName ||
-          g.name.toLowerCase() === info.groupTag.toLowerCase()
-        );
-      }
-      return (
-        g.id === `grp-src-${info.sourceName}` ||
-        gClean === cleanName ||
-        g.name.toLowerCase() === info.groupTag.toLowerCase()
-      );
-    });
-
-    if (existingGrp) {
-      if (info.isCustom) {
-        existingGrp.name = info.groupTag;
-        existingGrp.use = [info.sourceName];
-        // Clean out any other stale custom duplicate groups from effectiveGroups
-        const idx = effectiveGroups.indexOf(existingGrp);
-        for (let i = effectiveGroups.length - 1; i >= 0; i--) {
-          if (i !== idx) {
-            const g = effectiveGroups[i];
-            const gClean = cleanSourceOrGroupName(g.name);
-            if (!isProtectedGroup(g) && (g.id === 'grp-src-custom' || gClean === '独立节点组' || gClean === '自建节点')) {
-              effectiveGroups.splice(i, 1);
-            }
-          }
-        }
-      }
-      return;
-    }
-
-    if (info.isCustom) {
-      const srcGroup: ProxyGroupItem = {
-        id: `grp-src-${info.sourceName}`,
-        name: info.groupTag,
-        type: 'select',
-        use: [info.sourceName],
-        tolerance: 50,
-        interval: 300,
-        url: 'https://www.google.com/generate_204',
-      };
-      effectiveGroups.push(srcGroup);
-      existingGroupNames.add(info.groupTag.toLowerCase());
-      existingCleanNames.add(cleanName);
-    }
-  });
-
-  // Ensure '🚀 节点选择' references all active source groups (only if that source group exists in effectiveGroups)
-  const mainSelector = effectiveGroups.find(g => g.name === '🚀 节点选择');
-  if (mainSelector && mainSelector.proxies) {
-    mainSelector.proxies = mainSelector.proxies.filter(p => {
-      if (deadGroupTags.has(p)) return false;
-      if (p === '⚡️ 独立节点组' || p === '独立节点组') {
-        return effectiveGroups.some(g => g.name === p);
-      }
-      return true;
-    });
-    discoveredSources.forEach(info => {
-      if (effectiveGroups.some(g => g.name === info.groupTag) && !mainSelector.proxies!.includes(info.groupTag)) {
-        mainSelector.proxies!.unshift(info.groupTag);
-      }
-    });
-  }
-
+  const effectiveGroups = proxyGroups;
   const validGroupTags = new Set(effectiveGroups.map(g => g.name));
   const validNodeTags = new Set(allNodeTags);
-  sources.forEach(s => {
-    if (Array.isArray(s.nodes)) {
-      s.nodes.forEach((n: any) => validNodeTags.add(n.name));
-    }
-  });
+
   const isBuiltinSingboxOutbound = (t: string) => {
-    const upper = t.trim().toUpperCase();
+    const upper = (t || '').trim().toUpperCase();
     return (
       upper === 'DIRECT' ||
       upper === 'REJECT' ||
       upper === 'BLOCK' ||
       upper === 'GLOBAL' ||
       upper === 'DNS-OUT' ||
-      t.trim() === '🎯 本地直连'
+      (t || '').trim() === '🎯 本地直连'
     );
   };
 
@@ -661,62 +504,39 @@ export function injectUnifiedToSingbox(
       return;
     }
 
-    let outboundsList = grp.proxies ? [...grp.proxies] : [];
+    const targetSources = (grp.sources && grp.sources.length > 0)
+      ? grp.sources
+      : (grp.use && grp.use.length > 0 ? grp.use : []);
 
-    // Support use: [ "MESL" ] or [ "自建节点" ] or [ "HK优选" ]
-    if (grp.use && grp.use.length > 0) {
-      const useNormalized = new Set(
-        grp.use.map(u => cleanSourceOrGroupName(u).toLowerCase())
-      );
-
-      // Match node tags directly from matching sources (especially filter/derived sources)
-      const matchedNodeTagsFromSources = new Set<string>();
-      sources.forEach(s => {
-        const sClean = cleanSourceOrGroupName(s.name).toLowerCase();
-        if (useNormalized.has(sClean) || useNormalized.has(s.id.trim().toLowerCase())) {
-          if (Array.isArray(s.nodes)) {
-            s.nodes.forEach((n: any) => matchedNodeTagsFromSources.add(n.name));
-          }
-        }
+    let matchedNodes: any[] = [];
+    if (targetSources.length > 0) {
+      const targetNormalized = new Set(targetSources.map(s => cleanSourceOrGroupName(s).toLowerCase()));
+      matchedNodes = proxyOutbounds.filter(p => {
+        const sName = cleanSourceOrGroupName(p._sourceName || '').toLowerCase();
+        const sId = (p._sourceId || '').trim().toLowerCase();
+        return targetNormalized.has(sName) || targetNormalized.has(sId);
       });
+    } else {
+      matchedNodes = [...proxyOutbounds];
+    }
 
-      const matchedNodeTags = proxyOutbounds
-        .filter(p => {
-          if (matchedNodeTagsFromSources.has(p.tag)) return true;
-          const sName = cleanSourceOrGroupName(p._sourceName || '').toLowerCase();
-          const sId = (p._sourceId || '').trim().toLowerCase();
-          const isCustom = sId === 'custom' || sId.startsWith('custom');
-          return useNormalized.has(sName) || useNormalized.has(sId) ||
-            (isCustom && (useNormalized.has('自建节点') || useNormalized.has('独立节点组') || useNormalized.has('手工自建') || useNormalized.has('custom')));
-        })
-        .map(p => p.tag);
-      outboundsList = Array.from(new Set([...outboundsList, ...matchedNodeTags]));
-    } else if (grp.filter) {
+    if (grp.filter && grp.filter.trim()) {
       try {
         const cleanFilter = grp.filter.trim().replace(/^\(\?i\)/i, '').replace(/\(\?i\)/gi, '');
         const reg = new RegExp(cleanFilter, 'i');
-        const matched = allNodeTags.filter(tag => reg.test(tag));
-        outboundsList = matched.length > 0 ? matched : ['🎯 本地直连'];
+        matchedNodes = matchedNodes.filter(p => reg.test(p.tag));
       } catch (e) {
-        outboundsList = ['🎯 本地直连'];
+        console.warn(`[Singbox] Invalid filter regex in group ${grp.name}:`, grp.filter);
       }
-    } else {
-      // Auto-match if group name matches a subscription source name
-      const cleanGrpName = cleanSourceOrGroupName(grp.name).toLowerCase();
-      const isCustomGrp = grp.id === 'grp-src-custom' || cleanGrpName === '自建节点' || cleanGrpName === '独立节点组' || cleanGrpName === '手工自建' || cleanGrpName === 'custom' || Array.from(grp.use || []).some(u => u.includes('自建') || u.includes('独立'));
-      const matchedNodeTags = proxyOutbounds
-        .filter(p => {
-          const sName = cleanSourceOrGroupName(p._sourceName || '').toLowerCase();
-          const sId = (p._sourceId || '').trim().toLowerCase();
-          if (isCustomGrp) return sId === 'custom' || sId.startsWith('custom') || sName === '自建节点' || sName === '独立节点组' || sName === '手工自建' || sName === cleanGrpName;
-          return sName === cleanGrpName;
-        })
-        .map(p => p.tag);
+    }
 
-      if (matchedNodeTags.length > 0) {
-        outboundsList = Array.from(new Set([...outboundsList, ...matchedNodeTags]));
-      } else if (grp.name === '👉 手动选择' || grp.name === '♻️ 自动选择') {
-        outboundsList = allNodeTags.length > 0 ? allNodeTags : ['🎯 本地直连'];
+    let outboundsList: string[] = [];
+    if (targetSources.length === 0 && !grp.filter && grp.proxies && grp.proxies.length > 0) {
+      outboundsList = [...grp.proxies];
+    } else {
+      outboundsList = matchedNodes.map(p => p.tag);
+      if (grp.proxies && grp.proxies.length > 0) {
+        outboundsList = [...grp.proxies, ...outboundsList];
       }
     }
 

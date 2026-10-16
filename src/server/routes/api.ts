@@ -272,56 +272,41 @@ apiRouter.get('/api/sources', (req, res) => {
   res.json({ success: true, data: appConfig.sources });
 });
 
-// Add source: support both network subscription (url) and new custom node group (type: 'custom')
+// Add source: remote network subscription or manual node group
 apiRouter.post('/api/sources', async (req, res) => {
   try {
     const sourceName = (req.body.name || '新节点组').trim();
+    const isManual = req.body.type === 'manual' || req.body.type === 'custom';
 
-    // 1. Create custom group if type is 'custom'
-    if (req.body.type === 'custom') {
-      const newCustomSource: SubscriptionSource = {
-        id: `custom-${Date.now()}`,
+    // 1. Create manual node group
+    if (isManual) {
+      const newSource: SubscriptionSource = {
+        id: `manual-${Date.now()}`,
         name: sourceName,
         url: '',
         enabled: req.body.enabled !== false,
-        type: 'custom',
+        type: 'manual',
         nodeCount: 0,
         nodes: [],
         lastUpdated: new Date().toISOString(),
       };
-      appConfig.sources.push(newCustomSource);
-      ensureCustomProxyGroup(appConfig);
-      ensureAllSourceProxyGroups(appConfig);
+      appConfig.sources.push(newSource);
+
+      if (req.body.createGroup) {
+        appConfig.proxyGroups.push({
+          id: `grp-${newSource.id}`,
+          name: newSource.name,
+          type: 'select',
+          sources: [newSource.name],
+        });
+      }
+
       saveConfig(appConfig);
       setGlobalNodesCache(collectNodesFromSources(appConfig));
-      return res.json({ success: true, count: 0, data: newCustomSource });
+      return res.json({ success: true, count: 0, data: newSource });
     }
 
-    // 2. Create rule/filter group if type is 'filter'
-    if (req.body.type === 'filter') {
-      const newFilterSource: SubscriptionSource = {
-        id: `filter-${Date.now()}`,
-        name: sourceName,
-        url: '',
-        enabled: req.body.enabled !== false,
-        type: 'filter',
-        filterConfig: {
-          parentSourceIds: Array.isArray(req.body.filterConfig?.parentSourceIds) ? req.body.filterConfig.parentSourceIds : [],
-          includeRegex: req.body.filterConfig?.includeRegex || '',
-          excludeRegex: req.body.filterConfig?.excludeRegex || '',
-        },
-        nodeCount: 0,
-        nodes: [],
-        lastUpdated: new Date().toISOString(),
-      };
-      appConfig.sources.push(newFilterSource);
-      setGlobalNodesCache(collectNodesFromSources(appConfig));
-      ensureAllSourceProxyGroups(appConfig);
-      saveConfig(appConfig);
-      return res.json({ success: true, count: newFilterSource.nodeCount, data: newFilterSource });
-    }
-
-    // 3. Create network subscription
+    // 2. Create remote network subscription
     const sourceUrl = (req.body.url || '').trim();
     if (!sourceUrl) {
       return res.status(400).json({ success: false, message: '订阅链接不能为空' });
@@ -332,15 +317,14 @@ apiRouter.post('/api/sources', async (req, res) => {
       name: sourceName,
       url: sourceUrl,
       enabled: req.body.enabled !== false,
-      type: req.body.type || 'auto',
+      type: 'remote',
       nodeCount: 0,
       nodes: [],
     };
 
-    // Auto-fetch nodes immediately if HTTP/HTTPS URL
     if (newSource.url.startsWith('http://') || newSource.url.startsWith('https://')) {
       try {
-        console.log(`[Fetcher] Fetching nodes for newly added source [${sourceName}]: ${sourceUrl}`);
+        console.log(`[Fetcher] Fetching nodes for [${sourceName}]: ${sourceUrl}`);
         const nodes = await fetchAndParseSource(newSource, appConfig.countryRules);
         newSource.nodes = nodes;
         newSource.nodeCount = nodes.length;
@@ -352,15 +336,17 @@ apiRouter.post('/api/sources', async (req, res) => {
     }
 
     appConfig.sources.push(newSource);
-    ensureAllSourceProxyGroups(appConfig);
 
-    const mainSelector = appConfig.proxyGroups.find(g => g.name === '🚀 节点选择');
-    const groupTag = formatSourceGroupTag(newSource);
-    if (mainSelector) {
-      if (!mainSelector.proxies) mainSelector.proxies = [];
-      if (!mainSelector.proxies.includes(groupTag)) {
-        mainSelector.proxies.unshift(groupTag);
-      }
+    if (req.body.createGroup) {
+      appConfig.proxyGroups.push({
+        id: `grp-${newSource.id}`,
+        name: newSource.name,
+        type: 'urltest',
+        sources: [newSource.name],
+        tolerance: 50,
+        interval: 300,
+        url: 'https://www.google.com/generate_204',
+      });
     }
 
     saveConfig(appConfig);
@@ -381,7 +367,7 @@ apiRouter.put('/api/sources/:id', async (req, res) => {
   const oldName = cleanSourceOrGroupName(oldSource.name || '');
   const newName = req.body.name ? cleanSourceOrGroupName(req.body.name) : oldName;
 
-  // If source name changed, synchronize nodes and all proxyGroups
+  // If source name changed, update nodes and references in proxyGroups
   if (newName && newName !== oldName) {
     if (oldSource.nodes) {
       oldSource.nodes.forEach(n => {
@@ -389,35 +375,21 @@ apiRouter.put('/api/sources/:id', async (req, res) => {
       });
     }
 
-    const oldTag = formatSourceGroupTag(oldSource);
-    const newTag = formatSourceGroupTag({ ...oldSource, name: newName });
-
-    // Synchronize proxy groups
     if (appConfig.proxyGroups) {
       appConfig.proxyGroups.forEach(grp => {
-        const isSelfGroup = grp.id === `grp-src-${oldSource.id}` || 
-          (oldSource.id === 'custom' && (grp.id === 'grp-src-custom' || cleanSourceOrGroupName(grp.name) === '独立节点组' || cleanSourceOrGroupName(grp.name) === '自建节点')) ||
-          cleanSourceOrGroupName(grp.name).toLowerCase() === oldName.toLowerCase();
-
-        if (isSelfGroup) {
-          grp.name = newTag;
-          grp.use = [newName];
-        } else {
-          if (grp.use) {
-            grp.use = grp.use.map(u => (cleanSourceOrGroupName(u).toLowerCase() === oldName.toLowerCase() ? newName : u));
-          }
-          if (grp.proxies) {
-            grp.proxies = grp.proxies.map(p => (cleanSourceOrGroupName(p).toLowerCase() === oldName.toLowerCase() ? newTag : p));
-          }
+        if (grp.sources) {
+          grp.sources = grp.sources.map(s => cleanSourceOrGroupName(s).toLowerCase() === oldName.toLowerCase() ? newName : s);
+        }
+        if (grp.use) {
+          grp.use = grp.use.map(u => cleanSourceOrGroupName(u).toLowerCase() === oldName.toLowerCase() ? newName : u);
         }
       });
     }
   }
 
-  // If URL or format type changed for network subscriptions, re-fetch nodes
+  // Re-fetch if remote subscription URL changed
   const urlChanged = req.body.url && req.body.url.trim() !== oldSource.url;
-  const typeChanged = req.body.type && req.body.type !== oldSource.type;
-  if ((urlChanged || typeChanged) && oldSource.type !== 'custom' && oldSource.type !== 'filter') {
+  if (urlChanged && oldSource.type !== 'manual' && oldSource.type !== 'custom') {
     const updatedUrl = (req.body.url ? req.body.url.trim() : oldSource.url) || '';
     if (updatedUrl.startsWith('http://') || updatedUrl.startsWith('https://')) {
       try {
@@ -427,7 +399,6 @@ apiRouter.put('/api/sources/:id', async (req, res) => {
         req.body.nodes = nodes;
         req.body.nodeCount = nodes.length;
         req.body.lastUpdated = new Date().toISOString();
-        console.log(`[Fetcher] Successfully updated ${nodes.length} nodes for source [${newName || oldSource.name}]`);
       } catch (err: any) {
         console.error(`[Fetcher] Failed to fetch updated source URL:`, err.message || err);
       }
@@ -435,8 +406,6 @@ apiRouter.put('/api/sources/:id', async (req, res) => {
   }
 
   appConfig.sources[index] = { ...appConfig.sources[index], ...req.body };
-  ensureCustomProxyGroup(appConfig);
-  ensureAllSourceProxyGroups(appConfig);
   saveConfig(appConfig);
   setGlobalNodesCache(collectNodesFromSources(appConfig));
   res.json({ success: true, data: appConfig.sources[index], proxyGroups: appConfig.proxyGroups });
@@ -657,7 +626,8 @@ apiRouter.post('/api/groups/generate-country-presets', (req, res) => {
       const srcGroup: ProxyGroupItem = {
         id: `grp-src-${Date.now()}-${src.id}`,
         name: groupTag,
-        type: src.id === 'custom' ? 'select' : 'urltest',
+        type: (src.id === 'custom' || src.type === 'custom' || src.type === 'manual') ? 'select' : 'urltest',
+        sources: [src.id],
         use: [srcName],
         tolerance: 50,
         interval: 300,

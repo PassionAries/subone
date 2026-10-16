@@ -420,47 +420,11 @@ export function injectUnifiedToMihomo(
   const allProviderNames = allActiveRemoteSources.map(s => s.name.trim());
 
   // 2. Build Proxy Groups
-  const customSources = sources.filter(s => s.type === 'custom' || s.id === 'custom');
-  const customTagName = customSources[0]?.name
-    ? formatSourceGroupTag(customSources[0])
-    : '🖥️ 独立节点组';
-
   const effectiveGroups: ProxyGroupItem[] = proxyGroups.map(g => ({
     ...g,
     proxies: g.proxies ? [...g.proxies] : undefined,
-    use: g.use ? [...g.use] : undefined,
+    use: g.use ? [...g.use] : (g.sources ? [...g.sources] : undefined),
   }));
-
-  // Sanitize effectiveGroups: if there is a custom group, sync its name to customTagName and remove any stale custom group aliases
-  const customGrp = effectiveGroups.find(g =>
-    g.id === 'grp-src-custom' ||
-    g.name === customTagName ||
-    cleanSourceOrGroupName(g.name) === '独立节点组' ||
-    cleanSourceOrGroupName(g.name) === '自建节点'
-  );
-  if (customGrp) {
-    customGrp.name = customTagName;
-    customGrp.use = [cleanSourceOrGroupName(customSources[0]?.name || '独立节点组')];
-    const idx = effectiveGroups.indexOf(customGrp);
-    for (let i = effectiveGroups.length - 1; i >= 0; i--) {
-      if (i !== idx) {
-        const g = effectiveGroups[i];
-        if (g.id === 'grp-src-custom' || cleanSourceOrGroupName(g.name) === '独立节点组' || cleanSourceOrGroupName(g.name) === '自建节点') {
-          effectiveGroups.splice(i, 1);
-        }
-      }
-    }
-    effectiveGroups.forEach(grp => {
-      if (grp !== customGrp) {
-        if (grp.use) {
-          grp.use = grp.use.map(u => (cleanSourceOrGroupName(u) === '独立节点组' || cleanSourceOrGroupName(u) === '自建节点' ? cleanSourceOrGroupName(customSources[0]?.name || '独立节点组') : u));
-        }
-        if (grp.proxies) {
-          grp.proxies = grp.proxies.map(p => (cleanSourceOrGroupName(p) === '独立节点组' || cleanSourceOrGroupName(p) === '自建节点' ? customTagName : p));
-        }
-      }
-    });
-  }
 
   const validGroupNames = new Set(effectiveGroups.map(g => g.name));
   const validNodeNames = new Set(allNodeNames);
@@ -469,6 +433,7 @@ export function injectUnifiedToMihomo(
       s.nodes.forEach(n => validNodeNames.add(n.name));
     }
   });
+
   const isBuiltinClashProxy = (t: string) => {
     const upper = t.trim().toUpperCase();
     return (
@@ -522,107 +487,81 @@ export function injectUnifiedToMihomo(
       grpObj.tolerance = grp.tolerance || 50;
     }
 
-    // If using filter regex (e.g. for country groups)
-    if (grp.filter) {
-      grpObj.filter = grp.filter;
-      if (allProviderNames.length > 0) {
-        grpObj.use = grp.use && grp.use.length > 0 ? grp.use : allProviderNames;
-      }
-      if (!hasSuboneRemoteSubscription && customNodeNames.length > 0) {
-        grpObj.proxies = customNodeNames;
-      } else if (!grpObj.use || grpObj.use.length === 0) {
-        grpObj.proxies = ['DIRECT'];
-      }
-      generatedGroups.push(grpObj);
-      return;
-    }
+    // 匹配来源
+    const combinedProxies = new Set<string>(grp.proxies || []);
+    const groupUses = grp.use || grp.sources || [];
 
-    // Custom dedicated node group or dedicated source group
-    const cleanName = cleanSourceOrGroupName(grp.name).toLowerCase();
-    const matchedProvider = allProviderNames.find(p => {
-      const cleanP = cleanSourceOrGroupName(p).toLowerCase();
-      return cleanP === cleanName || p.toLowerCase() === cleanName;
+    // 检查是否有对应的 remote provider
+    const matchedProviders: string[] = [];
+    const matchedManualNodes: string[] = [];
+
+    // 若策略组名字直接匹配某个源
+    const cleanGrpName = cleanSourceOrGroupName(grp.name).toLowerCase();
+    const selfMatchedSource = sources.find(s => {
+      const sClean = cleanSourceOrGroupName(s.name).toLowerCase();
+      return sClean === cleanGrpName || s.id.toLowerCase() === cleanGrpName;
     });
-
-    if (matchedProvider) {
-      grpObj.use = [matchedProvider];
-      delete grpObj.proxies;
-      generatedGroups.push(grpObj);
-      return;
-    }
-
-    if (!hasSuboneRemoteSubscription) {
-      const isCustomGrp = grp.id === 'grp-src-custom' ||
-        cleanName === '自建节点' ||
-        cleanName === '独立节点组' ||
-        cleanName === 'custom' ||
-        cleanName === '手工自建' ||
-        customSources.some(cs => cleanSourceOrGroupName(cs.name).toLowerCase() === cleanName);
-
-      if (isCustomGrp) {
-        grpObj.proxies = customNodeNames.length > 0 ? customNodeNames : ['DIRECT'];
-        delete grpObj.use;
-        generatedGroups.push(grpObj);
-        return;
+    if (selfMatchedSource) {
+      if (allProviderNames.includes(selfMatchedSource.name.trim())) {
+        matchedProviders.push(selfMatchedSource.name.trim());
+      } else if (Array.isArray(selfMatchedSource.nodes)) {
+        selfMatchedSource.nodes.forEach(n => matchedManualNodes.push(n.name));
       }
     }
 
-    // Selector / General groups
-    const explicitProxies = grp.proxies || [];
-    const combinedProxies = new Set<string>(explicitProxies);
-
-    // If user explicitly specified `use` or this is a top-level aggregator group
-    if (grp.use && grp.use.length > 0) {
-      grp.use.forEach(u => {
-        const cleanU = cleanSourceOrGroupName(u).toLowerCase();
-        const isCustomU = cleanU === '自建节点' || cleanU === '独立节点组' || cleanU === 'custom' || cleanU === '手工自建' || customSources.some(cs => cleanSourceOrGroupName(cs.name).toLowerCase() === cleanU);
-        if (!hasSuboneRemoteSubscription && isCustomU) {
-          if (validGroupNames.has(customTagName)) {
-            combinedProxies.add(customTagName);
-          }
-          customNodeNames.forEach(name => combinedProxies.add(name));
-        }
-
-        // Check if matching source (especially filter/derived sources without proxy-provider)
-        const matchedSource = sources.find(s => {
-          const sClean = cleanSourceOrGroupName(s.name).toLowerCase();
-          return sClean === cleanU || s.id.trim().toLowerCase() === cleanU;
-        });
-        if (matchedSource && !allProviderNames.includes(matchedSource.name.trim())) {
-          if (Array.isArray(matchedSource.nodes)) {
-            matchedSource.nodes.forEach(n => combinedProxies.add(n.name));
-          }
-        }
+    // 处理 groupUses 中显式引用的源
+    groupUses.forEach(u => {
+      const cleanU = cleanSourceOrGroupName(u).toLowerCase();
+      const matchedSource = sources.find(s => {
+        const sClean = cleanSourceOrGroupName(s.name).toLowerCase();
+        return sClean === cleanU || s.id.toLowerCase() === cleanU || s.name.trim().toLowerCase() === u.trim().toLowerCase();
       });
 
-      const mappedUse = grp.use.map(u => {
-        const direct = allProviderNames.find(p => p.toLowerCase() === u.toLowerCase());
-        if (direct) return direct;
-        const cleanU = cleanSourceOrGroupName(u).toLowerCase();
-        const canonical = allProviderNames.find(p => {
-          const cleanP = cleanSourceOrGroupName(p).toLowerCase();
-          return cleanP === cleanU || p.toLowerCase() === cleanU;
-        });
-        return canonical || u;
-      }).filter(u => allProviderNames.includes(u));
-
-      if (mappedUse.length > 0) {
-        grpObj.use = mappedUse;
+      if (matchedSource) {
+        if (allProviderNames.includes(matchedSource.name.trim())) {
+          matchedProviders.push(matchedSource.name.trim());
+        } else if (Array.isArray(matchedSource.nodes)) {
+          matchedSource.nodes.forEach(n => matchedManualNodes.push(n.name));
+        }
+      } else {
+        // 可能引用了另一个策略组
+        const matchedGrp = effectiveGroups.find(g => cleanSourceOrGroupName(g.name).toLowerCase() === cleanU);
+        if (matchedGrp) {
+          combinedProxies.add(matchedGrp.name);
+        }
       }
-    } else if (allProviderNames.length > 0 && (grp.name === '🚀 节点选择' || grp.name === '👉 手动选择' || grp.name === '♻️ 自动选择')) {
-      grpObj.use = allProviderNames;
+    });
+
+    if (matchedProviders.length > 0) {
+      grpObj.use = Array.from(new Set(matchedProviders));
     }
 
-    // Add custom nodes or fallback
-    if (!hasSuboneRemoteSubscription && (grp.name === '👉 手动选择' || (combinedProxies.size === 0 && !grpObj.use))) {
-      customNodeNames.forEach(name => combinedProxies.add(name));
+    // 处理 filter 正则
+    if (grp.filter) {
+      grpObj.filter = grp.filter;
+      // 如果没有指定特定的 provider，且有可用的 remote providers，挂载所有 providers
+      if (!grpObj.use && allProviderNames.length > 0) {
+        grpObj.use = allProviderNames;
+      }
+      // 对于 manual 节点，应用 filter
+      try {
+        const reg = new RegExp(grp.filter);
+        const candidateManual = matchedManualNodes.length > 0 ? matchedManualNodes : allNodeNames;
+        candidateManual.filter(name => reg.test(name)).forEach(name => combinedProxies.add(name));
+      } catch {
+        matchedManualNodes.forEach(name => combinedProxies.add(name));
+      }
+    } else {
+      matchedManualNodes.forEach(name => combinedProxies.add(name));
     }
 
-    if (!hasSuboneRemoteSubscription && grp.name === '🚀 节点选择' && customNodes.length > 0 && validGroupNames.has(customTagName)) {
-      combinedProxies.add(customTagName);
+    // 默认回落到所有 provider
+    if (!grpObj.use && combinedProxies.size === 0) {
+      if (allProviderNames.length > 0 && (grp.name === '🚀 节点选择' || grp.name === '👉 手动选择' || grp.name === '♻️ 自动选择')) {
+        grpObj.use = allProviderNames;
+      }
     }
 
-    // Filter combinedProxies to only keep valid groups, nodes, or builtins
     const filteredProxies = Array.from(combinedProxies).filter(p => {
       if (!p || p.trim() === grp.name) return false;
       const t = p.trim();
