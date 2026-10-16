@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Copy,
   Edit2,
+  Eraser,
   ExternalLink,
   FileText,
   Layers,
@@ -88,13 +89,20 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
   // Internal search term for each source accordion: sourceId -> searchTerm
   const [sourceSearchTerms, setSourceSearchTerms] = useState<Record<string, string>>({});
 
+  const isSourceManual = (s: SubscriptionSource) => {
+    if (s.type === 'manual' || s.type === 'custom' || s.id === 'custom') return true;
+    if (!s.url || typeof s.url !== 'string' || !s.url.trim()) return true;
+    const trimmed = s.url.trim().toLowerCase();
+    return !trimmed.startsWith('http://') && !trimmed.startsWith('https://');
+  };
+
   // Partition sources: Manual Node Groups vs Remote Subscriptions
   const customSources = useMemo(() => {
-    return sources.filter(s => s.type === 'manual' || s.type === 'custom' || s.id === 'custom' || !s.url).sort((a, b) => a.name.localeCompare(b.name));
+    return sources.filter(isSourceManual).sort((a, b) => a.name.localeCompare(b.name));
   }, [sources]);
 
   const networkSources = useMemo(() => {
-    return sources.filter(s => s.type !== 'manual' && s.type !== 'custom' && s.id !== 'custom' && !!s.url).sort((a, b) => a.name.localeCompare(b.name));
+    return sources.filter(s => !isSourceManual(s)).sort((a, b) => a.name.localeCompare(b.name));
   }, [sources]);
 
   // Unified list: Manual groups first, then Network Subscriptions
@@ -169,6 +177,19 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
     if (ok) {
       setBulkEditCopied(true);
       setTimeout(() => setBulkEditCopied(false), 2000);
+    }
+  };
+
+  const handleClearNodes = async (source: SubscriptionSource) => {
+    if (!confirm(`确定要清空节点组【${source.name}】中的所有节点吗？`)) return;
+    try {
+      setIsSubmitting(true);
+      await fetch(`/api/sources/${source.id}/clear-nodes`, { method: 'POST' });
+      await onUpdateSource(source.id, { nodes: [], nodeCount: 0 });
+    } catch (err: any) {
+      alert(err.message || '清空节点失败');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -380,8 +401,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
       {/* 2. 统一卡片流（自建组自然置顶，网络订阅紧随其后） */}
       <div className="space-y-3">
         {unifiedSources.map(source => {
-          const isCustom = source.type === 'custom' || source.id === 'custom';
-          const isFilter = source.type === 'filter';
+          const isCustom = isSourceManual(source);
           const isExpanded = expandedSourceIds.has(source.id);
           const isThisRefreshing = refreshingId === source.id;
           const nodesList = source.nodes || [];
@@ -482,7 +502,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                       <button
                         onClick={() => handleOpenBulkEditModal(source)}
                         className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
-                        title="查看/编辑订阅文本"
+                        title="批量编辑节点文本"
                       >
                         <FileText className="w-3.5 h-3.5" />
                       </button>
@@ -494,6 +514,16 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
+
+                      {nodesList.length > 0 && (
+                        <button
+                          onClick={() => handleClearNodes(source)}
+                          className="p-1.5 text-[#8C877D] hover:text-[#B85D3F] hover:bg-[#FAF0EC] rounded-lg transition-colors cursor-pointer"
+                          title="清空此组所有节点"
+                        >
+                          <Eraser className="w-3.5 h-3.5" />
+                        </button>
+                      )}
 
                       <button
                         onClick={() => {
@@ -835,7 +865,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-[#1F1E1D]">编辑所有订阅文本</h3>
+                    <h3 className="text-sm font-bold text-[#1F1E1D]">批量编辑节点文本</h3>
                     <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#FBF2EA] text-[#C45E38] border border-[#F2D8C9]">
                       {bulkEditingSource.name}
                     </span>

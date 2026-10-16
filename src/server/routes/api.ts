@@ -238,15 +238,16 @@ const updateNodeHandler = (req: any, res: any) => {
 apiRouter.put('/api/custom-nodes/:id', updateNodeHandler);
 apiRouter.put('/api/nodes/:id', updateNodeHandler);
 
-apiRouter.delete('/api/custom-nodes/:id', (req, res) => {
+const deleteNodeHandler = (req: any, res: any) => {
+  const nodeId = req.params.id;
   let deleted = false;
   let remainingCount = 0;
   let affectedNodes: ProxyNode[] = [];
 
   for (const s of appConfig.sources) {
-    if ((s.type === 'custom' || s.id === 'custom') && s.nodes) {
+    if (s.nodes && s.nodes.length > 0) {
       const prevLen = s.nodes.length;
-      s.nodes = s.nodes.filter(n => n.id !== req.params.id);
+      s.nodes = s.nodes.filter(n => n.id !== nodeId);
       if (s.nodes.length !== prevLen) {
         s.nodeCount = s.nodes.length;
         deleted = true;
@@ -264,6 +265,22 @@ apiRouter.delete('/api/custom-nodes/:id', (req, res) => {
   }
 
   return res.status(404).json({ success: false, message: 'Node not found' });
+};
+
+apiRouter.delete('/api/custom-nodes/:id', deleteNodeHandler);
+apiRouter.delete('/api/nodes/:id', deleteNodeHandler);
+
+apiRouter.post('/api/sources/:id/clear-nodes', (req, res) => {
+  const source = appConfig.sources.find(s => s.id === req.params.id);
+  if (!source) {
+    return res.status(404).json({ success: false, message: 'Source not found' });
+  }
+  source.nodes = [];
+  source.nodeCount = 0;
+  source.lastUpdated = new Date().toISOString();
+  saveConfig(appConfig);
+  setGlobalNodesCache(collectNodesFromSources(appConfig));
+  res.json({ success: true, message: 'Nodes cleared' });
 });
 
 // 3. Network Sources Management (网络订阅源与自建节点组)
@@ -446,10 +463,11 @@ apiRouter.post('/api/sources/:id/refresh', async (req, res) => {
   if (!source) {
     return res.status(404).json({ success: false, message: 'Source not found' });
   }
-  if (source.type === 'filter') {
+  const url = (source.url || '').trim();
+  if (source.type === 'manual' || source.type === 'custom' || !url || !url.startsWith('http')) {
     setGlobalNodesCache(collectNodesFromSources(appConfig));
     saveConfig(appConfig);
-    return res.json({ success: true, nodeCount: source.nodeCount, data: source.nodes });
+    return res.json({ success: true, nodeCount: source.nodes?.length || 0, data: source.nodes || [] });
   }
   try {
     const nodes = await fetchAndParseSource(source, appConfig.countryRules);

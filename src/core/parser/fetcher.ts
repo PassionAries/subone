@@ -19,8 +19,8 @@ export async function fetchAndParseSource(
   source: SubscriptionSource,
   countryPatterns?: CountryPatternRule[]
 ): Promise<ProxyNode[]> {
-  const url = source.url.trim();
-  if (!url) return [];
+  const url = (source.url || '').trim();
+  if (!url) return source.nodes || [];
 
   // If local direct text content / node URIs (not starting with http/https)
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
