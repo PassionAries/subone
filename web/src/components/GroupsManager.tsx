@@ -451,8 +451,8 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                             <React.Fragment key={idx}>
                               <span
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${isRelay
-                                    ? 'bg-[#FAF8FE] border-[#E8E1F5] text-[#553C9A]'
-                                    : 'bg-[#FAF8F5] border-[#E8E4DC] text-[#4A4742]'
+                                  ? 'bg-[#FAF8FE] border-[#E8E1F5] text-[#553C9A]'
+                                  : 'bg-[#FAF8F5] border-[#E8E4DC] text-[#4A4742]'
                                   }`}
                               >
                                 {isRelay && (
@@ -493,10 +493,10 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                           <span
                             key={idx}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${isFilterSrc
-                                ? 'bg-[#F4F1FA] border-[#E8E1F5] text-[#6A4C9C]'
-                                : isCustomSrc
-                                  ? 'bg-[#F0ECE4] border-[#E2DDD5] text-[#59554E]'
-                                  : 'bg-[#FAF0EC] border-[#F3DDD3] text-[#B85D3F]'
+                              ? 'bg-[#F4F1FA] border-[#E8E1F5] text-[#6A4C9C]'
+                              : isCustomSrc
+                                ? 'bg-[#F0ECE4] border-[#E2DDD5] text-[#59554E]'
+                                : 'bg-[#FAF0EC] border-[#F3DDD3] text-[#B85D3F]'
                               }`}
                           >
                             <span className="text-xs">{icon}</span>
@@ -678,7 +678,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="例如: 🌎 国外域名 / 🤖 AI 服务"
                     value={formData.name || ''}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#E8E4DC] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
@@ -751,10 +750,10 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                       <span
                         key={idx}
                         className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-medium text-xs border ${isRelay
-                            ? 'bg-[#F4F1FA] text-[#6A4C9C] border-[#E8E1F5]'
-                            : valid
-                              ? 'bg-[#FAF0EC] text-[#B85D3F] border-[#F3DDD3]'
-                              : 'bg-[#FDF2F2] text-[#E02424] border-[#FBD5D5] ring-1 ring-[#E02424]/20'
+                          ? 'bg-[#F4F1FA] text-[#6A4C9C] border-[#E8E1F5]'
+                          : valid
+                            ? 'bg-[#FAF0EC] text-[#B85D3F] border-[#F3DDD3]'
+                            : 'bg-[#FDF2F2] text-[#E02424] border-[#FBD5D5] ring-1 ring-[#E02424]/20'
                           }`}
                         title={valid ? undefined : '该节点在订阅与自建源中已不存在，保存或点击清理即可移除'}
                       >
@@ -890,7 +889,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                 </div>
                 <input
                   type="text"
-                  placeholder="例如: (🇭🇰|香港|hk|hongkong)"
                   value={formData.filter || ''}
                   onChange={e => setFormData({ ...formData, filter: e.target.value })}
                   className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#E8E4DC] rounded-xl font-mono text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"

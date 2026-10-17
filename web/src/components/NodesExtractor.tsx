@@ -236,8 +236,8 @@ export const NodesExtractor: React.FC<NodesExtractorProps> = ({
                 key={code}
                 onClick={() => setSelectedCountry(selectedCountry === code ? 'ALL' : code)}
                 className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono transition-all ${selectedCountry === code
-                    ? 'bg-[#CC785C] text-white font-bold shadow-xs'
-                    : 'bg-[#F5F2EC] text-[#59554E] hover:bg-[#EDE8DE] border border-[#E3DDD2]'
+                  ? 'bg-[#CC785C] text-white font-bold shadow-xs'
+                  : 'bg-[#F5F2EC] text-[#59554E] hover:bg-[#EDE8DE] border border-[#E3DDD2]'
                   }`}
               >
                 <span>{data.emoji}</span>
@@ -627,7 +627,7 @@ export const NodesExtractor: React.FC<NodesExtractorProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="(🇭🇰|香港|港|hk|hongkong)"
+                  placeholder=""
                   value={cPattern}
                   onChange={e => setCPattern(e.target.value)}
                   className="w-full px-3 py-2 claude-input rounded-xl text-xs font-mono"
@@ -638,7 +638,7 @@ export const NodesExtractor: React.FC<NodesExtractorProps> = ({
                 <label className="block text-xs font-medium text-[#4A4742] mb-1">挂载对应测速分组 (可选)</label>
                 <input
                   type="text"
-                  placeholder="例如：🇭🇰 香港节点"
+                  placeholder=""
                   value={cGroupName}
                   onChange={e => setCGroupName(e.target.value)}
                   className="w-full px-3 py-2 claude-input rounded-xl text-xs"
@@ -681,7 +681,6 @@ export const NodesExtractor: React.FC<NodesExtractorProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="例如：过滤官网与过期节点"
                   value={ruleName}
                   onChange={e => setRuleName(e.target.value)}
                   className="w-full px-3.5 py-2 claude-input rounded-xl text-xs"

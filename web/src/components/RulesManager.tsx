@@ -548,7 +548,6 @@ export const RulesManager: React.FC<RulesManagerProps> = ({
                 <label className="font-semibold text-[#1F1E1D]">备注名称 (可选)</label>
                 <input
                   type="text"
-                  placeholder="例如: 谷歌服务 / 办公专线"
                   value={singleName}
                   onChange={e => setSingleName(e.target.value)}
                   className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#E8E4DC] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
@@ -679,7 +678,6 @@ export const RulesManager: React.FC<RulesManagerProps> = ({
                 <label className="font-semibold text-[#1F1E1D]">备注名称</label>
                 <input
                   type="text"
-                  placeholder="例如: 谷歌服务 / 办公专线"
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
                   className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#E8E4DC] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"

@@ -713,7 +713,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="例如：主力机场"
+                  placeholder=""
                   value={newNetworkName}
                   onChange={e => setNewNetworkName(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-white border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
@@ -934,7 +934,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                 <textarea
                   required
                   rows={9}
-                  placeholder={`vless://11111111-2222-3333-4444-555555555555@example.com:8881?encryption=none&security=reality&type=tcp&sni=swdist.apple.com#我的香港VPS\nhysteria2://my_password@example.com:8443?sni=example.com#我的Hy2节点\nwireguard://private_key@example.com:51820?public_key=peer_pub_key&ip=10.0.0.2/32#家庭WG\nanytls://password@example.com:443?sni=example.com#我的AnyTLS`}
                   value={customText}
                   onChange={e => setCustomText(e.target.value)}
                   className="w-full px-3 py-2 text-[11px] font-mono bg-[#FAF8F5] border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
@@ -985,7 +984,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                   type="text"
                   required
                   autoFocus
-                  placeholder="例如：VPS自建，好友专线"
+                  placeholder=""
                   value={newGroupNameInput}
                   onChange={e => setNewGroupNameInput(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-white border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
@@ -1106,9 +1105,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                   placeholder="vless://... 或 hysteria2://... 或 ss://... 等节点链接"
                   className="w-full px-3 py-2 text-xs font-mono bg-white border border-[#E3DDD2] rounded-xl text-[#1F1E1D] focus:outline-none focus:border-[#CC785C] resize-y break-all"
                 />
-                <p className="text-[11px] text-[#8C877D] mt-1 leading-relaxed">
-                  提示：可在此直接修改服务器地址、端口、密码/UUID 或参数，保存后将自动重新解析并更新节点配置。
-                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-[#E8E2D8]">

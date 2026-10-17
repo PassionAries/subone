@@ -1051,7 +1051,6 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                 <label className="text-xs font-bold text-[#1F1E1D]">订阅名称 *</label>
                 <input
                   type="text"
-                  placeholder="例如: 手机-轻量订阅 / 家庭TV专线"
                   value={profile.name}
                   onChange={e => onChangeProfile(prev => prev ? { ...prev, name: e.target.value } : prev)}
                   className="w-full px-3.5 py-2.5 bg-[#FAF8F5] border border-[#E3DDD2] rounded-xl text-xs text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
@@ -1276,11 +1275,10 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                   return (
                     <div
                       key={source.id}
-                      className={`rounded-xl border transition-all duration-200 bg-white overflow-hidden ${
-                        isChecked
+                      className={`rounded-xl border transition-all duration-200 bg-white overflow-hidden ${isChecked
                           ? 'border-[#CC785C] bg-[#FAF0EC]/40 shadow-2xs'
                           : 'border-[#ECE7DE] hover:border-[#CC785C]/40 hover:bg-[#FAF8F5]'
-                      }`}
+                        }`}
                     >
                       <div
                         onClick={() => toggleSourceSelection(source.id)}

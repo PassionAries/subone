@@ -713,7 +713,6 @@ export const RulesetsManager: React.FC<RulesetsManagerProps> = ({
                 <label className="block text-xs font-medium text-[#4A4742] mb-1.5">规则名称 / 备注 (可选)</label>
                 <input
                   type="text"
-                  placeholder="例如：自建私有服务、GitHub 加速"
                   value={singleName}
                   onChange={e => setSingleName(e.target.value)}
                   className="w-full px-3.5 py-2 claude-input rounded-xl text-xs"
@@ -765,7 +764,6 @@ export const RulesetsManager: React.FC<RulesetsManagerProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder={singleType === 'RULE-SET' ? 'https://...srs 或 https://...yaml' : '例如：google.com 或 10.0.0.0/8'}
                   value={singlePayload}
                   onChange={e => setSinglePayload(e.target.value)}
                   className="w-full px-3.5 py-2 claude-input rounded-xl text-xs font-mono"
@@ -809,7 +807,7 @@ export const RulesetsManager: React.FC<RulesetsManagerProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="例如：🎮 游戏服务、📺 Netflix、💻 远程运维"
+                  placeholder=""
                   value={newGroupName}
                   onChange={e => setNewGroupName(e.target.value)}
                   className="w-full px-3.5 py-2 claude-input rounded-xl text-xs"

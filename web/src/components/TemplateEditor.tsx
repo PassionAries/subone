@@ -318,7 +318,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="例如：旁路由备用模版、家庭精简版"
+                  placeholder=""
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
                   className="w-full px-3.5 py-2 claude-input rounded-xl text-xs"
@@ -345,7 +345,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                 <label className="block text-xs font-medium text-[#4A4742] mb-1.5">模版备注描述 (可选)</label>
                 <input
                   type="text"
-                  placeholder="例如： 校园网分流调优"
+                  placeholder=""
                   value={newDesc}
                   onChange={e => setNewDesc(e.target.value)}
                   className="w-full px-3.5 py-2 claude-input rounded-xl text-xs"
