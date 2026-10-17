@@ -348,7 +348,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-2 mt-1 text-xs text-[#78746D] flex-wrap">
-            <span>统一管理网络订阅与节点分组</span>
             <span className="text-[#D0C9BD]">•</span>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FAF8F5] border border-[#E8E4DC] text-[#59554E] text-[11px] font-medium">
               <span>{customSources.length} 独立组</span>
@@ -462,14 +461,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                     </div>
 
                     {/* 卡片副信息 */}
-                    <div className="text-[11px] text-[#78746D] truncate">
-                      {isCustom ? (
-                        <span className="text-[#8C877D]">独立节点管理</span>
-                      ) : (
-                        <span className="font-mono select-all text-[#8C877D]">{source.url}</span>
-                      )}
-                    </div>
-
                     {/* 更新时间提示 */}
                     {source.lastUpdated && (
                       <div className="text-[10px] text-[#9E9A91]">
@@ -665,14 +656,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                       <p className="text-xs font-medium text-[#8C877D]">
                         该组暂无节点
                       </p>
-                      {isCustom && nodesList.length === 0 && (
-                        <button
-                          onClick={() => handleOpenImportModal(source.id)}
-                          className="text-xs text-[#CC785C] font-semibold hover:underline"
-                        >
-                          点击批量贴入节点链接 (vless://, hysteria2://, ss://, Clash YAML, Singbox JSON)
-                        </button>
-                      )}
                     </div>
                   )}
                 </div>

@@ -93,8 +93,8 @@ export function resolveNodesForGroup(
       const uClean = cleanName(u, icons).toLowerCase();
       const matchedSrc = sources.find(
         s => cleanName(s.name, icons).toLowerCase() === uClean ||
-             s.id.toLowerCase() === uClean ||
-             (s.id === 'custom' && (uClean === '自建节点' || uClean === '独立节点组' || uClean === '手工自建' || uClean === 'custom'))
+          s.id.toLowerCase() === uClean ||
+          (s.id === 'custom' && (uClean === '自建节点' || uClean === '独立节点组' || uClean === '手工自建' || uClean === 'custom'))
       );
       if (matchedSrc && Array.isArray(matchedSrc.nodes) && matchedSrc.nodes.length > 0) {
         matchedSrc.nodes.forEach(n => {
@@ -450,11 +450,10 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                           return (
                             <React.Fragment key={idx}>
                               <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${
-                                  isRelay
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${isRelay
                                     ? 'bg-[#FAF8FE] border-[#E8E1F5] text-[#553C9A]'
                                     : 'bg-[#FAF8F5] border-[#E8E4DC] text-[#4A4742]'
-                                }`}
+                                  }`}
                               >
                                 {isRelay && (
                                   <span className="text-[10px] font-bold text-[#6A4C9C]">
@@ -493,13 +492,12 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                         return (
                           <span
                             key={idx}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${
-                              isFilterSrc
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${isFilterSrc
                                 ? 'bg-[#F4F1FA] border-[#E8E1F5] text-[#6A4C9C]'
                                 : isCustomSrc
-                                ? 'bg-[#F0ECE4] border-[#E2DDD5] text-[#59554E]'
-                                : 'bg-[#FAF0EC] border-[#F3DDD3] text-[#B85D3F]'
-                            }`}
+                                  ? 'bg-[#F0ECE4] border-[#E2DDD5] text-[#59554E]'
+                                  : 'bg-[#FAF0EC] border-[#F3DDD3] text-[#B85D3F]'
+                              }`}
                           >
                             <span className="text-xs">{icon}</span>
                             <span>{cleanLabel}</span>
@@ -661,9 +659,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                 <h3 className="text-base font-bold text-[#1F1E1D]">
                   {editingGroup ? `编辑策略组: ${formData.name || ''}` : '新建策略组'}
                 </h3>
-                <p className="text-xs text-[#78746D]">
-                  配置策略组类型、包含的子策略组/节点、订阅源引用与过滤规则
-                </p>
               </div>
               <button
                 onClick={() => {
@@ -755,13 +750,12 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                     return (
                       <span
                         key={idx}
-                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-medium text-xs border ${
-                          isRelay
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-medium text-xs border ${isRelay
                             ? 'bg-[#F4F1FA] text-[#6A4C9C] border-[#E8E1F5]'
                             : valid
                               ? 'bg-[#FAF0EC] text-[#B85D3F] border-[#F3DDD3]'
                               : 'bg-[#FDF2F2] text-[#E02424] border-[#FBD5D5] ring-1 ring-[#E02424]/20'
-                        }`}
+                          }`}
                         title={valid ? undefined : '该节点在订阅与自建源中已不存在，保存或点击清理即可移除'}
                       >
                         {isRelay && (
