@@ -81,7 +81,7 @@ apiRouter.post('/api/config/settings', (req, res) => {
 apiRouter.get('/api/custom-nodes', (req, res) => {
   const sourceId = req.query.sourceId as string | undefined;
   if (sourceId) {
-    const target = appConfig.sources.find(s => s.id === sourceId && (s.type === 'custom' || s.id === 'custom'));
+    const target = appConfig.sources.find(s => s.id === sourceId && (s.type === 'custom' || s.type === 'manual' || s.id === 'custom' || !s.url));
     return res.json({ success: true, count: target?.nodes?.length || 0, data: target?.nodes || [] });
   }
   const customSrc = ensureCustomSource(appConfig);
@@ -96,7 +96,7 @@ apiRouter.post('/api/custom-nodes/import', (req, res) => {
 
   // Find target custom source
   let targetSrc = sourceId
-    ? appConfig.sources.find(s => s.id === sourceId && (s.type === 'custom' || s.id === 'custom'))
+    ? appConfig.sources.find(s => s.id === sourceId && (s.type === 'custom' || s.type === 'manual' || s.id === 'custom' || !s.url))
     : null;
   if (!targetSrc) {
     targetSrc = ensureCustomSource(appConfig);
@@ -152,7 +152,7 @@ apiRouter.post('/api/custom-nodes/import', (req, res) => {
 
 apiRouter.post('/api/custom-nodes', (req, res) => {
   let targetSrc = req.body.sourceId
-    ? appConfig.sources.find(s => s.id === req.body.sourceId && (s.type === 'custom' || s.id === 'custom'))
+    ? appConfig.sources.find(s => s.id === req.body.sourceId && (s.type === 'custom' || s.type === 'manual' || s.id === 'custom' || !s.url))
     : null;
   if (!targetSrc) {
     targetSrc = ensureCustomSource(appConfig);

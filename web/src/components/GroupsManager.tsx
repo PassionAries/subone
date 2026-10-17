@@ -162,7 +162,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [showYamlModal, setShowYamlModal] = useState(false);
   const [yamlText, setYamlText] = useState('');
-  const [customProxyInput, setCustomProxyInput] = useState('');
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<ProxyGroupItem>>({
@@ -216,7 +215,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
       url: 'https://www.google.com/generate_204',
       interval: 300,
     });
-    setCustomProxyInput('');
     setIsAdding(true);
   };
 
@@ -227,7 +225,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
       proxies: group.proxies ? [...group.proxies] : [],
       use: group.use ? [...group.use] : [],
     });
-    setCustomProxyInput('');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -276,17 +273,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
     }
   };
 
-  const handleAddCustomProxy = (e?: React.KeyboardEvent) => {
-    if (e && e.key !== 'Enter') return;
-    if (e) e.preventDefault();
-    const val = customProxyInput.trim();
-    if (!val) return;
-    const current = formData.proxies || [];
-    if (!current.includes(val)) {
-      setFormData({ ...formData, proxies: [...current, val] });
-    }
-    setCustomProxyInput('');
-  };
 
   const handleRemoveProxy = (proxyName: string) => {
     const current = formData.proxies || [];
@@ -855,24 +841,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                         );
                       })}
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="text"
-                    placeholder="输入自定义组名或节点名按回车添加..."
-                    value={customProxyInput}
-                    onChange={e => setCustomProxyInput(e.target.value)}
-                    onKeyDown={handleAddCustomProxy}
-                    className="flex-1 px-2.5 py-1.5 bg-white border border-[#E3DDD2] rounded-lg text-xs focus:outline-none focus:border-[#CC785C]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleAddCustomProxy()}
-                    className="px-3 py-1.5 text-xs font-medium btn-claude-secondary rounded-lg cursor-pointer"
-                  >
-                    添加
-                  </button>
                 </div>
               </div>
 

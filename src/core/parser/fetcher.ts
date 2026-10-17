@@ -101,12 +101,32 @@ export function parseRawContent(
   const lines = decoded.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
   const uriNodes: ProxyNode[] = [];
   lines.forEach((line, idx) => {
-    if (line.includes('://')) {
-      const node = parseNodeUri(line, idx, countryPatterns);
+    let candidate = line;
+    // Decode double or single URL-encoded string
+    if (candidate.includes('%25')) {
+      try {
+        candidate = decodeURIComponent(decodeURIComponent(candidate));
+      } catch {}
+    } else if (candidate.includes('%40') || candidate.includes('%3A')) {
+      try {
+        candidate = decodeURIComponent(candidate);
+      } catch {}
+    }
+
+    // Auto-detect missing protocol scheme:
+    // e.g. starts with UUID@host:port, or starts with partial uuid like [0-9a-f-]{20,}@
+    if (!candidate.includes('://')) {
+      if (/^[0-9a-fA-F-]{20,}@/.test(candidate) || (candidate.includes('@') && candidate.includes(':') && candidate.includes('?'))) {
+        candidate = `vless://${candidate}`;
+      }
+    }
+
+    if (candidate.includes('://')) {
+      const node = parseNodeUri(candidate, idx, countryPatterns);
       if (node) {
         node.sourceId = sourceId;
         node.sourceName = sourceName;
-        node.raw = line;
+        node.raw = candidate;
         uriNodes.push(node);
       }
     }

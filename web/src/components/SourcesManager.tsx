@@ -11,7 +11,6 @@ import {
   Layers,
   Plus,
   RefreshCw,
-  Search,
   Server,
   Sparkles,
   Trash2,
@@ -86,8 +85,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
   // Accordion expanded source IDs (默认全部收起)
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(new Set());
 
-  // Internal search term for each source accordion: sourceId -> searchTerm
-  const [sourceSearchTerms, setSourceSearchTerms] = useState<Record<string, string>>({});
+
 
   const isSourceManual = (s: SubscriptionSource) => {
     if (s.type === 'manual' || s.type === 'custom' || s.id === 'custom') return true;
@@ -405,16 +403,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
           const isExpanded = expandedSourceIds.has(source.id);
           const isThisRefreshing = refreshingId === source.id;
           const nodesList = source.nodes || [];
-          const currentSearch = (sourceSearchTerms[source.id] || '').toLowerCase().trim();
-
-          const filteredNodes = currentSearch
-            ? nodesList.filter(n =>
-              n.name.toLowerCase().includes(currentSearch) ||
-              n.server.toLowerCase().includes(currentSearch) ||
-              (n.type || '').toLowerCase().includes(currentSearch) ||
-              String(n.port).includes(currentSearch)
-            )
-            : nodesList;
 
           return (
             <div
@@ -536,17 +524,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
 
-                      <button
-                        onClick={() => onUpdateSource(source.id, { enabled: !source.enabled })}
-                        className="p-1.5 text-[#8C877D] hover:text-[#1F1E1D] hover:bg-[#EFEAE2]/60 rounded-lg transition-colors cursor-pointer"
-                        title={source.enabled !== false ? '点击停用' : '点击启用'}
-                      >
-                        {source.enabled !== false ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#367A68]" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-[#9E9A91]" />
-                        )}
-                      </button>
 
                       <button
                         onClick={() => {
@@ -612,52 +589,11 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
 
               {/* 3. 展开区域：就地查看节点详情 (Accordion) */}
               {isExpanded && (
-                <div className="border-t border-[#F0ECE4] bg-white p-4 space-y-3 animate-in fade-in duration-150">
-                  {/* 组内快速搜索过滤栏 */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="relative flex-1 max-w-sm">
-                      <Search className="w-3.5 h-3.5 text-[#8C877D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder={`在【${source.name}】中搜索节点名、协议或服务器...`}
-                        value={sourceSearchTerms[source.id] || ''}
-                        onChange={e =>
-                          setSourceSearchTerms(prev => ({ ...prev, [source.id]: e.target.value }))
-                        }
-                        className="w-full pl-8 pr-7 py-1 text-xs bg-[#FAF8F5] border border-[#E3DDD2] rounded-lg text-[#1F1E1D] focus:outline-none focus:border-[#CC785C]"
-                      />
-                      {sourceSearchTerms[source.id] && (
-                        <button
-                          onClick={() =>
-                            setSourceSearchTerms(prev => ({ ...prev, [source.id]: '' }))
-                          }
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8C877D] hover:text-[#1F1E1D] text-xs"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2.5">
-                      <div className="text-[11px] text-[#8C877D] shrink-0 font-medium">
-                        显示 {filteredNodes.length} / {nodesList.length} 节点
-                      </div>
-                      {isCustom && (
-                        <button
-                          onClick={() => handleOpenBulkEditModal(source)}
-                          className="text-[11px] text-[#CC785C] hover:text-[#B85D3F] hover:underline font-medium cursor-pointer"
-                          title="编辑所有订阅文本"
-                        >
-                          编辑订阅文本
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
+                <div className="border-t border-[#F0ECE4] bg-white p-4 animate-in fade-in duration-150">
                   {/* 节点列表渲染 */}
-                  {filteredNodes.length > 0 ? (
+                  {nodesList.length > 0 ? (
                     <div className="rounded-xl border border-[#EBE6DC] divide-y divide-[#F0ECE4] overflow-hidden">
-                      {filteredNodes.map(node => (
+                      {nodesList.map(node => (
                         <div
                           key={node.id}
                           className="px-3.5 py-2 hover:bg-[#FAF8F5] transition-colors flex items-center justify-between gap-3 text-xs group/item"
@@ -727,7 +663,7 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                   ) : (
                     <div className="p-6 rounded-xl border border-dashed border-[#DFD9CF] text-center space-y-2">
                       <p className="text-xs font-medium text-[#8C877D]">
-                        {nodesList.length === 0 ? '该组暂无节点' : '没有匹配搜索条件的节点'}
+                        该组暂无节点
                       </p>
                       {isCustom && nodesList.length === 0 && (
                         <button
@@ -776,9 +712,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
                 <h3 className="text-sm font-bold text-[#1F1E1D]">
                   {editingNetworkSource ? '编辑网络订阅源' : '添加网络订阅源'}
                 </h3>
-                <p className="text-[11px] text-[#78746D]">
-                  {editingNetworkSource ? '修改订阅名称、链接地址或格式解析模式' : '支持 HTTP/HTTPS 机场订阅链接，添加后自动解析'}
-                </p>
               </div>
               <button
                 onClick={() => {
@@ -974,9 +907,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-[#F0ECE4]">
               <div>
                 <h3 className="text-sm font-bold text-[#1F1E1D]">批量贴入独立节点</h3>
-                <p className="text-[11px] text-[#78746D]">
-                  支持每行一个节点链接 (vless://, ss://, hy2://, trojan://, anytls://, wireguard://, snell://)，或 Clash YAML / Singbox JSON
-                </p>
               </div>
               <button
                 onClick={() => setShowImportNodesModal(false)}
@@ -1029,16 +959,6 @@ export const SourcesManager: React.FC<SourcesManagerProps> = ({
               </div>
 
               <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={customReplaceAll}
-                    onChange={e => setCustomReplaceAll(e.target.checked)}
-                    className="rounded border-[#DFD9CF] text-[#CC785C] focus:ring-[#CC785C]"
-                  />
-                  <span className="text-xs text-[#78746D]">覆盖模式 (清空该组并完全替换)</span>
-                </label>
-
                 <div className="flex gap-2">
                   <button
                     type="button"

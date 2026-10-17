@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Check,
-  CheckCircle2,
   Edit2,
   FileCode,
   FileText,
@@ -11,7 +10,6 @@ import {
   Search,
   Trash2,
   Upload,
-  XCircle,
   Zap,
 } from 'lucide-react';
 import { ProxyGroupItem, UnifiedRuleItem } from '../types';
@@ -307,7 +305,6 @@ export const RulesManager: React.FC<RulesManagerProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-[#FAF8F5] border-b border-[#E8E4DC] text-[#78746D] font-semibold text-[11px]">
               <tr>
-                <th className="py-2.5 px-4 w-10">状态</th>
                 <th className="py-2.5 px-4 min-w-[160px] max-w-[240px]">规则名称 / 备注</th>
                 <th className="py-2.5 px-4 w-28">类型</th>
                 <th className="py-2.5 px-4">匹配内容 / 链接</th>
@@ -320,19 +317,6 @@ export const RulesManager: React.FC<RulesManagerProps> = ({
                 const payloadItems = rule.payload.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
                 return (
                   <tr key={rule.id} className="hover:bg-[#FAF8F5] transition-colors">
-                    <td className="py-2.5 px-4">
-                      <button
-                        onClick={() => onUpdateRule(rule.id, { enabled: !rule.enabled })}
-                        title={rule.enabled ? '点击禁用' : '点击启用'}
-                      >
-                        {rule.enabled ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#367A68]" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-[#9E9A91]" />
-                        )}
-                      </button>
-                    </td>
-
                     <td className="py-2.5 px-4 font-semibold text-[#1F1E1D] max-w-[240px] truncate" title={rule.name}>
                       {rule.name}
                     </td>
