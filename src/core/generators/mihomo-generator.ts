@@ -307,7 +307,7 @@ export function generateMihomoConfig(
   const allNodesMap = new Map<string, ProxyNode>();
   nodes.forEach(n => allNodesMap.set(n.name, n));
   sources.forEach(s => {
-    if ((s.type === 'filter' || s.type === 'custom' || !s.url || !s.url.startsWith('http')) && Array.isArray(s.nodes)) {
+    if ((s.type === 'filter' || s.type === 'custom' || s.type === 'manual' || !s.url || !s.url.startsWith('http')) && Array.isArray(s.nodes)) {
       s.nodes.forEach(n => {
         if (!allNodesMap.has(n.name)) allNodesMap.set(n.name, n);
       });

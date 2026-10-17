@@ -12,7 +12,7 @@ export function applyExtractionRules(
   }
 
   const selectedNodes: ProxyNode[] = [];
-  const processedNodeIds = new Set<string>();
+  const processedKeys = new Set<string>();
 
   for (const rule of activeRules) {
     // 1. Source filter
@@ -22,7 +22,8 @@ export function applyExtractionRules(
     });
 
     for (const node of sourceMatchedNodes) {
-      if (processedNodeIds.has(node.id)) continue;
+      const nodeKey = `${node.id || ''}#${node.name}#${node.server}:${node.port}`;
+      if (processedKeys.has(nodeKey)) continue;
 
       // 2. Country filter
       if (rule.targetCountries && rule.targetCountries.length > 0) {
@@ -91,7 +92,7 @@ export function applyExtractionRules(
       }
 
       selectedNodes.push(nodeCopy);
-      processedNodeIds.add(node.id);
+      processedKeys.add(nodeKey);
     }
   }
 
@@ -99,18 +100,20 @@ export function applyExtractionRules(
 }
 
 export function deduplicateNodes(nodes: ProxyNode[]): ProxyNode[] {
-  // First pass: physical deduplication by id or connection signature
-  const seenIds = new Set<string>();
+  // First pass: physical deduplication
+  // Nodes are only treated as identical if both their connection config AND name match
+  const seenKeys = new Set<string>();
   const physicalUnique: ProxyNode[] = [];
   for (const node of nodes) {
-    const key = node.id || `${node.server}:${node.port}:${node.uuid || node.password || node.name}`;
-    if (!seenIds.has(key)) {
-      seenIds.add(key);
+    const sig = `${node.type}:${node.server}:${node.port}:${node.name}:${node.uuid || node.password || ''}:${node.sni || ''}:${node.wsPath || ''}`;
+    const key = node.id ? `${node.id}#${sig}` : sig;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
       physicalUnique.push(node);
     }
   }
 
-  // Second pass: name deduplication for actually different nodes
+  // Second pass: name deduplication for actually different nodes (Clash requires unique names)
   const nameCounts = new Map<string, number>();
   const result: ProxyNode[] = [];
 

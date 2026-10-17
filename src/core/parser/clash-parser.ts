@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import yaml from 'js-yaml';
 import { CountryPatternRule, ProxyNode } from '../../types/index.js';
 import { detectCountry } from './country.js';
@@ -28,8 +29,15 @@ export function parseClashYaml(
       if (type === 'hysteria2' || type === 'hy2') nodeType = 'hysteria2';
       if (type === 'socks') nodeType = 'socks5';
 
+      const srv = String(p.server || p.ip || '').trim().replace(/^\[(.*)\]$/, '$1');
+      const hash = crypto
+        .createHash('md5')
+        .update(`${srv}:${p.port}:${name}:${p.uuid || p.password || ''}:${idx}`)
+        .digest('hex')
+        .slice(0, 8);
+
       const node: ProxyNode = {
-        id: `clash-${sourceId || 'src'}-${idx}-${p.server || p.ip}-${p.port}`,
+        id: `clash-${sourceId || 'src'}-${srv}-${p.port}-${hash}`,
         name,
         type: nodeType,
         server: String(p.server || '').trim().replace(/^\[(.*)\]$/, '$1'),

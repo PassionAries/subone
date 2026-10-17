@@ -246,9 +246,9 @@ const deleteNodeHandler = (req: any, res: any) => {
 
   for (const s of appConfig.sources) {
     if (s.nodes && s.nodes.length > 0) {
-      const prevLen = s.nodes.length;
-      s.nodes = s.nodes.filter(n => n.id !== nodeId);
-      if (s.nodes.length !== prevLen) {
+      const idx = s.nodes.findIndex(n => n.id === nodeId);
+      if (idx !== -1) {
+        s.nodes.splice(idx, 1);
         s.nodeCount = s.nodes.length;
         deleted = true;
         remainingCount = s.nodeCount;

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { CountryPatternRule, ProxyNode } from '../../types/index.js';
 import { detectCountry } from './country.js';
 
@@ -51,9 +52,15 @@ export function parseSingboxJson(
         }
       }
 
+      const srv = String(ob.server || '').trim().replace(/^\[(.*)\]$/, '$1');
+      const hash = crypto
+        .createHash('md5')
+        .update(`${srv}:${ob.server_port}:${name}:${ob.uuid || ob.password || ''}:${idx}`)
+        .digest('hex')
+        .slice(0, 8);
 
       const node: ProxyNode = {
-        id: `singbox-${sourceId || 'src'}-${idx}-${ob.server}-${ob.server_port}`,
+        id: `singbox-${sourceId || 'src'}-${srv}-${ob.server_port}-${hash}`,
         name,
         type: nodeType,
         server: String(ob.server || '').trim().replace(/^\[(.*)\]$/, '$1'),

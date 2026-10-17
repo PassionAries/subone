@@ -110,15 +110,20 @@ export async function getEffectiveNodesForProfile(profile: SubscriptionProfile):
   // 1. Group / Source selection (Primary mode)
   if (Array.isArray(filter.sourceIds) && filter.sourceIds.length > 0) {
     const selectedSourceIds = new Set(filter.sourceIds);
-    const collectedMap = new Map<string, ProxyNode>();
+    const collectedNodes: ProxyNode[] = [];
+    const seenKeys = new Set<string>();
     appConfig.sources.forEach(s => {
       if (selectedSourceIds.has(s.id) && s.enabled && s.nodes) {
         s.nodes.forEach(n => {
-          collectedMap.set(n.id, n);
+          const key = n.id ? `${n.id}#${n.name}` : `${n.server}:${n.port}:${n.name}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            collectedNodes.push(n);
+          }
         });
       }
     });
-    filtered = Array.from(collectedMap.values());
+    filtered = collectedNodes;
   } else {
     // If no sourceIds specified, default to all available nodes
     filtered = allNodes;

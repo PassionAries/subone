@@ -53,6 +53,23 @@ function decodeBase64Safe(str: string): string {
   }
 }
 
+function generateUniqueNodeId(
+  prefix: string,
+  server: string,
+  port: number | string,
+  name: string,
+  extra: string = '',
+  index: number = 0
+): string {
+  const cleanServer = cleanHost(server || '');
+  const hash = crypto
+    .createHash('md5')
+    .update(`${cleanServer}:${port}:${name}:${extra}:${index}`)
+    .digest('hex')
+    .slice(0, 8);
+  return `${prefix}-${cleanServer}-${port}-${hash}`;
+}
+
 export function parseNodeUri(uri: string, index: number = 0, countryPatterns?: CountryPatternRule[]): ProxyNode | null {
   uri = uri.trim();
   if (!uri) return null;
@@ -132,7 +149,7 @@ function parseVless(uri: string, index: number, countryPatterns?: CountryPattern
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'vless',
     server,
@@ -168,7 +185,7 @@ function parseVmess(uri: string, index: number, countryPatterns?: CountryPattern
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${json.add}-${json.port}`,
+    id: generateUniqueNodeId('node', json.add, json.port, name, uri, index),
     name,
     type: 'vmess',
     server: cleanHost(json.add),
@@ -234,7 +251,7 @@ function parseShadowsocks(uri: string, index: number, countryPatterns?: CountryP
 
   const country = detectCountry(name, countryPatterns);
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'ss',
     server,
@@ -268,7 +285,7 @@ function parseTrojan(uri: string, index: number, countryPatterns?: CountryPatter
 
   const country = detectCountry(name, countryPatterns);
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'trojan',
     server,
@@ -330,7 +347,7 @@ function parseHysteria2(uri: string, index: number, countryPatterns?: CountryPat
 
   const country = detectCountry(name, countryPatterns);
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'hysteria2',
     server,
@@ -384,7 +401,7 @@ function parseTuic(uri: string, index: number, countryPatterns?: CountryPatternR
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'tuic',
     server,
@@ -455,7 +472,7 @@ function parseWireguard(uri: string, index: number, countryPatterns?: CountryPat
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'wireguard',
     server,
@@ -490,7 +507,7 @@ function parseSnell(uri: string, index: number, countryPatterns?: CountryPattern
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'snell',
     server,
@@ -530,7 +547,7 @@ function parseAnytls(uri: string, index: number, countryPatterns?: CountryPatter
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'anytls',
     server,
@@ -571,7 +588,7 @@ function parseNaive(uri: string, index: number, countryPatterns?: CountryPattern
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'naive',
     server,
@@ -669,7 +686,7 @@ function parseSocks5(uri: string, index: number, countryPatterns?: CountryPatter
   const country = detectCountry(name, countryPatterns);
 
   return {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type: 'socks5',
     server,
@@ -785,7 +802,7 @@ function parseV2rayN(uri: string, index: number, countryPatterns?: CountryPatter
   }
 
   const node: ProxyNode = {
-    id: `node-${index}-${server}-${port}`,
+    id: generateUniqueNodeId('node', server, port, name, uri, index),
     name,
     type,
     server,
