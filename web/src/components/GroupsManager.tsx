@@ -182,14 +182,19 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
 
   const standardOutbounds = ['🚀 节点选择', '🎯 本地直连', '♻️ 自动选择', '👉 手动选择'];
   const groupOutbounds = groups.map(g => g.name);
-  const sourceOutbounds = sources.filter(s => s.enabled).map(s => getSourceTag(s, sourceIcons));
 
   const allCandidateOutbounds = Array.from(new Set([
     ...standardOutbounds,
-    ...sourceOutbounds,
     ...groupOutbounds,
-    ...(customNodes.length > 0 ? [customSourceTag] : []),
   ]));
+
+  const isProxyValid = (proxyName: string): boolean => {
+    if (!proxyName || !proxyName.trim()) return false;
+    if (allCandidateOutbounds.includes(proxyName)) return true;
+    const clean = proxyName.trim().toLowerCase();
+    if (['direct', 'reject', 'pass', 'compatible', 'global', '🎯 本地直连'].includes(clean)) return true;
+    return nodes.some(n => n.name.trim().toLowerCase() === clean);
+  };
 
   const hasCustomGroup = groups.some(g => {
     const clean = cleanName(g.name, sourceIcons).toLowerCase();
@@ -220,9 +225,11 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
 
   const handleOpenEdit = (group: ProxyGroupItem) => {
     setEditingGroup(group);
+    // 静默过滤已失效或已不存在的虚假/残留项，不打扰用户
+    const validProxies = (group.proxies || []).filter(isProxyValid);
     setFormData({
       ...group,
-      proxies: group.proxies ? [...group.proxies] : [],
+      proxies: validProxies,
       use: group.use ? [...group.use] : [],
     });
   };
@@ -231,10 +238,13 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
     e.preventDefault();
     if (!formData.name?.trim()) return;
 
+    // 保存时自动清洗，剔除无效项
+    const cleanProxies = (formData.proxies || []).filter(isProxyValid);
+
     const payload = {
       ...formData,
       name: formData.name.trim(),
-      proxies: formData.proxies || [],
+      proxies: cleanProxies,
       use: formData.use || [],
       filter: formData.filter?.trim() || '',
     };
@@ -247,21 +257,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
       setIsAdding(false);
       await onAddGroup(payload);
     }
-  };
-
-  const isProxyValid = (proxyName: string): boolean => {
-    if (allCandidateOutbounds.includes(proxyName)) return true;
-    const clean = proxyName.trim().toLowerCase();
-    if (['direct', 'reject', 'pass', 'compatible', 'global', '🎯 本地直连'].includes(clean)) return true;
-    return nodes.some(n => n.name.trim().toLowerCase() === clean);
-  };
-
-  const handleCleanInvalidProxies = () => {
-    const current = formData.proxies || [];
-    setFormData({
-      ...formData,
-      proxies: current.filter(isProxyValid),
-    });
   };
 
   const handleToggleProxy = (proxyName: string) => {
@@ -443,9 +438,9 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                         {group.type === 'relay' ? '🔗 链式中继流程:' : '包含子项:'}
                       </span>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {group.proxies!.map((p, idx) => {
+                        {group.proxies!.filter(isProxyValid).map((p, idx) => {
                           const count = getNodeCountForOutbound(p);
-                          const total = group.proxies!.length;
+                          const total = group.proxies!.filter(isProxyValid).length;
                           const isRelay = group.type === 'relay';
                           return (
                             <React.Fragment key={idx}>
@@ -719,31 +714,13 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                     <Layers className="w-3.5 h-3.5 text-[#CC785C]" />
                     <span>包含的出站策略组 / 选项 (Proxies)</span>
                   </label>
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const invalidCount = (formData.proxies || []).filter(p => !isProxyValid(p)).length;
-                      if (invalidCount === 0) return null;
-                      return (
-                        <button
-                          type="button"
-                          onClick={handleCleanInvalidProxies}
-                          className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-[#FDF2F2] text-[#E02424] border border-[#FBD5D5] rounded-md hover:bg-[#FDE8E8] transition-all cursor-pointer shadow-2xs"
-                          title="一键移除所有在当前节点与策略组中已不存在的残留项"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span>一键清理 {invalidCount} 个失效项</span>
-                        </button>
-                      );
-                    })()}
-                    <span className="text-[10px] text-[#78746D]">
-                      已选 {(formData.proxies || []).length} 项
-                    </span>
-                  </div>
+                  <span className="text-[10px] text-[#78746D]">
+                    已选 {(formData.proxies || []).length} 项
+                  </span>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-white rounded-lg border border-[#E3DDD2]">
                   {(formData.proxies || []).map((p, idx) => {
-                    const valid = isProxyValid(p);
                     const isRelay = formData.type === 'relay';
                     const total = (formData.proxies || []).length;
                     return (
@@ -751,11 +728,8 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                         key={idx}
                         className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-medium text-xs border ${isRelay
                           ? 'bg-[#F4F1FA] text-[#6A4C9C] border-[#E8E1F5]'
-                          : valid
-                            ? 'bg-[#FAF0EC] text-[#B85D3F] border-[#F3DDD3]'
-                            : 'bg-[#FDF2F2] text-[#E02424] border-[#FBD5D5] ring-1 ring-[#E02424]/20'
+                          : 'bg-[#FAF0EC] text-[#B85D3F] border-[#F3DDD3]'
                           }`}
-                        title={valid ? undefined : '该节点在订阅与自建源中已不存在，保存或点击清理即可移除'}
                       >
                         {isRelay && (
                           <span className="text-[10px] px-1 py-0.2 rounded font-bold bg-[#E8E1F5] text-[#553C9A]">
@@ -763,11 +737,6 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                           </span>
                         )}
                         <span>{p}</span>
-                        {!valid && (
-                          <span className="text-[9px] px-1 bg-[#FDE8E8] text-[#9B1C1C] rounded font-bold">
-                            已失效
-                          </span>
-                        )}
                         {isRelay && total > 1 && (
                           <div className="flex items-center gap-0.5 border-l border-[#E8E1F5] pl-1 ml-0.5">
                             <button
@@ -793,7 +762,7 @@ export const GroupsManager: React.FC<GroupsManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveProxy(p)}
-                          className={`${isRelay ? 'text-[#6A4C9C] hover:text-[#4A2D78]' : valid ? 'text-[#B85D3F] hover:text-[#94381C]' : 'text-[#E02424] hover:text-[#9B1C1C]'} p-0.5 cursor-pointer`}
+                          className={`${isRelay ? 'text-[#6A4C9C] hover:text-[#4A2D78]' : 'text-[#B85D3F] hover:text-[#94381C]'} p-0.5 cursor-pointer`}
                         >
                           <X className="w-3 h-3" />
                         </button>
